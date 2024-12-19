@@ -7,7 +7,7 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 
 // Command to start the bot
 bot.command("start", (ctx) => {
-    ctx.reply("🎬 Welcome to the SinhalaSub Movie Downloader Bot! Type a movie name to search.");
+    ctx.reply("🎬 Welcome to the CineMindBot Movie Downloader Bot! Type a movie name to search.");
 });
 
 // Handle text messages
@@ -79,7 +79,7 @@ bot.on("text", async (ctx) => {
 
 // Start the bot
 bot.launch().then(() => {
-    console.log("🎬 SinhalaSub Movie Bot is running...");
+    console.log("🎬 CineMMind Movie Bot is running...");
 }).catch((error) => {
     console.error("Failed to start bot:", error.message || error);
 });
