@@ -1,106 +1,85 @@
-// This plugin was created by David Cyril
-
-// Don't Edit or Share without giving me credits
-
 const { sinhalaSub } = require("mrnima-moviedl");
 const axios = require("axios");
+require("dotenv").config(); // For environment variables like BOT_TOKEN
+
 const { Telegraf } = require("telegraf");
+const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// Initialize bot
-const bot = new Telegraf("7263499266:AAFA6iaa0GfgcaIBViB4QF1EnN0qV3tqRq0"); // Replace with your bot token
-
-// Command: /owner
-bot.command("owner", (ctx) => {
-  const ownerInfo = `
-  👤 *Owner Information*:
-  Name: *AI OF LAUTECH*
-  WhatsApp: *+2348089336992*
-  
-  For any queries, feel free to reach out!
-  `;
-  ctx.reply(ownerInfo, { parse_mode: "Markdown" });
-});
-
-// Command: /start
+// Command to start the bot
 bot.command("start", (ctx) => {
-  const commandsList = `
-  📜 *Available Commands*:
-  
-  1️⃣ /download <movie_name> - Search and download movies
-  2️⃣ /owner - Show owner information
-  3️⃣ /start - Display all available commands
-  
-  Powered by CineMindBot
-  `;
-  ctx.reply(commandsList, { parse_mode: "Markdown" });
+    ctx.reply("🎬 Welcome to the SinhalaSub Movie Downloader Bot! Type a movie name to search.");
 });
 
-// Command: /download
-bot.command("download", async (ctx) => {
-  const query = ctx.message.text.split(" ").slice(1).join(" ");
+// Handle text messages
+bot.on("text", async (ctx) => {
+    const query = ctx.message.text.trim();
 
-  if (!query) {
-    return ctx.reply("*Please provide a search query! (e.g., Deadpool)*", { parse_mode: "Markdown" });
-  }
-
-  try {
-    // Step 2: Search SinhalaSub for movies
-    const sinhala = await sinhalaSub();
-    const results = await sinhala.search(query);
-    const movies = results.result.slice(0, 10);
-
-    if (!movies.length) {
-      return ctx.reply(`No results found for: ${query}`);
+    if (!query) {
+        return ctx.reply("❌ Please provide a movie name to search. Example: `Venom`", { parse_mode: "Markdown" });
     }
 
-    // Step 3: Send movie list to the user
-    let movieList = `📽️ *Search Results for* "${query}":\n\n`;
-    movies.forEach((movie, index) => {
-      movieList += `*${index + 1}.* ${movie.title}\n🔗 Link: ${movie.link}\n\n`;
-    });
+    ctx.reply(`🔍 Searching for "${query}"...`);
 
-    const replyMessage = await ctx.reply(movieList, { parse_mode: "Markdown" });
+    try {
+        // Use SinhalaSub package to search for movies
+        const sinhala = await sinhalaSub();
+        const results = await sinhala.search(query);
 
-    // Step 4: Listen for user's movie selection
-    bot.on("text", async (responseCtx) => {
-      const selection = responseCtx.message.text;
-      const selectedIndex = parseInt(selection.trim());
-
-      if (isNaN(selectedIndex) || selectedIndex <= 0 || selectedIndex > movies.length) {
-        return responseCtx.reply("Invalid selection. Please reply with a valid number.");
-      }
-
-      const selectedMovie = movies[selectedIndex - 1];
-      const apiUrl = `https://api-site-2.vercel.app/api/sinhalasub/movie?url=${encodeURIComponent(selectedMovie.link)}`;
-
-      try {
-        // Step 5: Fetch movie details and download links
-        const { data } = await axios.get(apiUrl);
-        const movieDetails = data.result;
-        const downloadLinks = movieDetails.dl_links || [];
-
-        if (!downloadLinks.length) {
-          return responseCtx.reply("No download links found.");
+        if (!results.result || results.result.length === 0) {
+            return ctx.reply(`❌ No results found for "${query}". Please try a different movie.`);
         }
 
-        // Step 6: Send download links to the user
-        let qualityList = `🎥 *${movieDetails.title}*\n\n*Available Download Links:*\n`;
-        downloadLinks.forEach((link, index) => {
-          qualityList += `*${index + 1}.* ${link.quality} - ${link.size}\n🔗 Link: ${link.link}\n\n`;
+        const movies = results.result.slice(0, 5); // Get the first 5 movies
+        let movieList = `🎥 *Search Results for* "${query}":\n\n`;
+
+        // Display movie list to the user
+        movies.forEach((movie, index) => {
+            movieList += `*${index + 1}.* ${movie.title}\n🔗 [Select this movie](${movie.link})\n\n`;
         });
 
-        responseCtx.reply(qualityList, { parse_mode: "Markdown" });
-      } catch (error) {
-        console.error("Error fetching movie details:", error);
-        responseCtx.reply("An error occurred while fetching movie details. Please try again.");
-      }
-    });
-  } catch (error) {
-    console.error("Error during search:", error);
-    ctx.reply("*An error occurred while searching!*", { parse_mode: "Markdown" });
-  }
+        await ctx.reply(movieList, { parse_mode: "Markdown" });
+
+        // Process movie selection
+        bot.on("callback_query", async (callbackQuery) => {
+            const selectedMovieIndex = parseInt(callbackQuery.data);
+
+            if (isNaN(selectedMovieIndex) || selectedMovieIndex < 1 || selectedMovieIndex > movies.length) {
+                return ctx.reply("❌ Invalid selection. Please try again.");
+            }
+
+            const selectedMovie = movies[selectedMovieIndex - 1];
+            const apiUrl = `https://api-site-2.vercel.app/api/sinhalasub/movie?url=${encodeURIComponent(selectedMovie.link)}`;
+
+            try {
+                // Fetch movie download links
+                const { data } = await axios.get(apiUrl);
+
+                if (!data.result || !data.result.dl_links || data.result.dl_links.length === 0) {
+                    return ctx.reply("❌ No download links found for this movie.");
+                }
+
+                let downloadLinks = `🎥 *${data.result.title}*\n\n*Available Download Links:*\n`;
+                data.result.dl_links.forEach((link, index) => {
+                    downloadLinks += `*${index + 1}.* ${link.quality} - ${link.size}\n🔗 [Download](${link.link})\n\n`;
+                });
+
+                await ctx.reply(downloadLinks, { parse_mode: "Markdown" });
+
+            } catch (error) {
+                console.error("Error fetching download links:", error.message || error);
+                ctx.reply("❌ An error occurred while fetching download links. Please try again later.");
+            }
+        });
+
+    } catch (error) {
+        console.error("Error searching for movies:", error.message || error);
+        ctx.reply("❌ An error occurred while searching. Please try again later.");
+    }
 });
 
 // Start the bot
-bot.launch();
-console.log("Bot is running...");
+bot.launch().then(() => {
+    console.log("🎬 SinhalaSub Movie Bot is running...");
+}).catch((error) => {
+    console.error("Failed to start bot:", error.message || error);
+});
