@@ -1,55 +1,164 @@
+// This plugin was created by David Cyril
+
+// Don't Edit or Share without giving me credits
+
 const { sinhalaSub } = require("mrnima-moviedl");
 const axios = require("axios");
-require("dotenv").config(); // For loading environment variables like BOT_TOKEN
 
-const { Telegraf } = require("telegraf"); // Import Telegraf for Telegram bot
-const bot = new Telegraf(process.env.BOT_TOKEN); // Initialize the bot
-
-// Command to search for movies
-bot.command("start", (ctx) => {
-    ctx.reply("🎬 Welcome to the SinhalaSub Movie Downloader Bot! Type a movie name to search.");
+// Command for displaying owner information
+cmd({
+  pattern: "owner", // Command: /owner
+  alias: [],
+  react: "👤", // Reaction for the command
+  category: "info",
+  desc: "Display owner contact information",
+  filename: __filename,
+}, async (bot, message, args, { reply }) => {
+  try {
+    // Display owner info
+    const ownerInfo = `
+      👤 *Owner Information*:
+      Name: *AI Of Lautech*
+      WhatsApp: *+2348089336992*
+      
+      For any queries, feel free to reach out!
+    `;
+    await reply(ownerInfo);
+  } catch (error) {
+    console.error("Error in /owner command:", error);
+    await reply("❌ An error occurred while fetching owner information.");
+  }
 });
 
-bot.on("text", async (ctx) => {
-    const query = ctx.message.text.trim();
+// Command for displaying available commands
+cmd({
+  pattern: "start", // Command: /start
+  alias: [],
+  react: "📜", // Reaction for the command
+  category: "info",
+  desc: "Display available commands",
+  filename: __filename,
+}, async (bot, message, args, { reply }) => {
+  try {
+    // Display the list of available commands
+    const commandsList = `
+      📜 *Available Commands*:
+      
+      1️⃣ /download <movie_name> - Search and download movies
+      2️⃣ /owner - Show owner information
+      3️⃣ /start - Display all available commands
+      
+      Powered by SinhalaSub Bot
+    `;
+    await reply(commandsList);
+  } catch (error) {
+    console.error("Error in /start command:", error);
+    await reply("❌ An error occurred while displaying commands.");
+  }
+});
 
-    if (!query) {
-        return ctx.reply("❌ Please provide a movie name to search. Example: `Venom`", { parse_mode: "Markdown" });
+// Command for searching and downloading movies
+cmd({
+  pattern: "download", // Changed to /download
+  alias: ["sinhalasub", "movie"],
+  react: "📑",
+  category: "download",
+  desc: "Search movies on SinhalaSub and get download links",
+  filename: __filename,
+}, async (bot, message, args, { from, q, reply }) => {
+  try {
+    // Step 1: Validate query
+    if (!q) {
+      return await reply("*Please provide a search query! (e.g., Deadpool)*");
     }
 
-    ctx.reply(`🔍 Searching for "${query}"...`);
+    // Step 2: Search SinhalaSub for movies
+    const sinhala = await sinhalaSub();
+    const results = await sinhala.search(q);
+    const movies = results.result.slice(0, 10);
 
-    try {
-        // Call SinhalaSub API to search for movies
-        const searchUrl = `https://api-site-2.vercel.app/api/sinhalasub/movie?query=${encodeURIComponent(query)}`;
-        console.log("Calling API:", searchUrl); // Debugging step
+    if (!movies.length) {
+      return await reply(`No results found for: ${q}`);
+    }
 
-        const response = await axios.get(searchUrl);
+    // Step 3: Send movie list to the user
+    let movieList = `📽️ *Search Results for* "${q}":\n\n`;
+    movies.forEach((movie, index) => {
+      movieList += `*${index + 1}.* ${movie.title}\n🔗 Link: ${movie.link}\n\n`;
+    });
 
-        // Check API response
-        if (!response.data || !response.data.result || response.data.result.length === 0) {
-            return ctx.reply(`❌ No results found for "${query}". Please try a different movie.`);
+    const selectionMessage = await bot.sendMessage(from, { text: movieList }, { quoted: message });
+
+    // Step 4: Wait for user to select a movie
+    bot.ev.on("messages.upsert", async (response) => {
+      const selectedMessage = response.messages[0];
+      if (!selectedMessage.message) return;
+
+      const selectionText = selectedMessage.message.conversation || selectedMessage.message.extendedTextMessage?.text;
+      const isValidSelection = selectedMessage.message.extendedTextMessage?.contextInfo.stanzaId === selectionMessage.key.id;
+
+      if (isValidSelection) {
+        const selectedIndex = parseInt(selectionText.trim());
+        if (isNaN(selectedIndex) || selectedIndex <= 0 || selectedIndex > movies.length) {
+          return await reply("Invalid selection. Please reply with a valid number.");
         }
 
-        const movies = response.data.result.slice(0, 5); // Get the first 5 movies
-        let movieList = `🎥 *Search Results for* "${query}":\n\n`;
+        const selectedMovie = movies[selectedIndex - 1];
+        const apiUrl = `https://api-site-2.vercel.app/api/sinhalasub/movie?url=${encodeURIComponent(selectedMovie.link)}`;
 
-        // Display movie list to the user
-        movies.forEach((movie, index) => {
-            movieList += `*${index + 1}.* ${movie.title}\n🔗 [View Movie](${movie.link})\n\n`;
-        });
+        try {
+          // Step 5: Fetch download links
+          const { data } = await axios.get(apiUrl);
+          const movieDetails = data.result;
+          const downloadLinks = movieDetails.dl_links || [];
 
-        await ctx.reply(movieList, { parse_mode: "Markdown" });
+          if (!downloadLinks.length) {
+            return await reply("No PixelDrain links found.");
+          }
 
-    } catch (error) {
-        console.error("Error while searching for movies:", error.message || error);
-        ctx.reply("❌ An error occurred while searching. Please try again later.");
-    }
-});
+          // Step 6: Send quality options to the user
+          let qualityList = `🎥 *${movieDetails.title}*\n\n*Available PixelDrain Download Links:*\n`;
+          downloadLinks.forEach((link, index) => {
+            qualityList += `*${index + 1}.* ${link.quality} - ${link.size}\n🔗 Link: ${link.link}\n\n`;
+          });
 
-// Start the bot
-bot.launch().then(() => {
-    console.log("🎬 CineMind Movie Bot is running...");
-}).catch((error) => {
-    console.error("Failed to start bot:", error.message || error);
+          const qualityMessage = await bot.sendMessage(from, { text: qualityList }, { quoted: selectedMessage });
+
+          // Step 7: Wait for quality selection
+          bot.ev.on("messages.upsert", async (qualityResponse) => {
+            const qualityMessage = qualityResponse.messages[0];
+            if (!qualityMessage.message) return;
+
+            const qualitySelection = qualityMessage.message.conversation || qualityMessage.message.extendedTextMessage?.text;
+            const isValidQuality = qualityMessage.message.extendedTextMessage?.contextInfo.stanzaId === qualityMessage.key.id;
+
+            if (isValidQuality) {
+              const qualityIndex = parseInt(qualitySelection.trim());
+              if (isNaN(qualityIndex) || qualityIndex <= 0 || qualityIndex > downloadLinks.length) {
+                return await reply("Invalid selection. Please reply with a valid number.");
+              }
+
+              const selectedQuality = downloadLinks[qualityIndex - 1];
+              const fileId = selectedQuality.link.split("/").pop();
+              const downloadUrl = `https://pixeldrain.com/api/file/${fileId}`;
+
+              // Step 8: Send the file
+              await bot.sendMessage(from, {
+                document: { url: downloadUrl },
+                mimetype: "video/mp4",
+                fileName: `${movieDetails.title} - ${selectedQuality.quality}.mp4`,
+                caption: `${movieDetails.title}\nQuality: ${selectedQuality.quality}\nPowered by SinhalaSub`,
+              }, { quoted: qualityMessage });
+            }
+          });
+        } catch (error) {
+          console.error("Error fetching movie details:", error);
+          await reply("An error occurred while fetching movie details. Please try again.");
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error during search:", error);
+    await reply("*An error occurred while searching!*");
+  }
 });
