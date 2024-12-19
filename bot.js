@@ -1,39 +1,55 @@
-require("dotenv").config();
-const TelegramBot = require("node-telegram-bot-api");
+const { sinhalaSub } = require("mrnima-moviedl");
 const axios = require("axios");
+require("dotenv").config(); // For loading environment variables like BOT_TOKEN
 
-const botToken = process.env.BOT_TOKEN;
-const bot = new TelegramBot(botToken, { polling: true });
+const { Telegraf } = require("telegraf"); // Import Telegraf for Telegram bot
+const bot = new Telegraf(process.env.BOT_TOKEN); // Initialize the bot
 
-bot.onText(/\/start/, (msg) => {
-    const chatId = msg.chat.id;
-    bot.sendMessage(chatId, "🎥 Welcome to the SinhalaSub Movie Downloader Bot!\n\nType a movie name to search.");
+// Command to search for movies
+bot.command("start", (ctx) => {
+    ctx.reply("🎬 Welcome to the SinhalaSub Movie Downloader Bot! Type a movie name to search.");
 });
 
-bot.on("message", async (msg) => {
-    const chatId = msg.chat.id;
-    const query = msg.text;
+bot.on("text", async (ctx) => {
+    const query = ctx.message.text.trim();
 
-    if (query.startsWith("/")) return;
+    if (!query) {
+        return ctx.reply("❌ Please provide a movie name to search. Example: `Venom`", { parse_mode: "Markdown" });
+    }
 
-    bot.sendMessage(chatId, `🔍 Searching for "${query}"...`);
+    ctx.reply(`🔍 Searching for "${query}"...`);
+
     try {
-        const response = await axios.get(`https://api-site-2.vercel.app/api/sinhalasub/movie?query=${encodeURIComponent(query)}`);
-        const movies = response.data.result || [];
+        // Call SinhalaSub API to search for movies
+        const searchUrl = `https://api-site-2.vercel.app/api/sinhalasub/movie?query=${encodeURIComponent(query)}`;
+        console.log("Calling API:", searchUrl); // Debugging step
 
-        if (movies.length === 0) {
-            bot.sendMessage(chatId, `❌ No results found for "${query}".`);
-            return;
+        const response = await axios.get(searchUrl);
+
+        // Check API response
+        if (!response.data || !response.data.result || response.data.result.length === 0) {
+            return ctx.reply(`❌ No results found for "${query}". Please try a different movie.`);
         }
 
-        let movieList = `📽️ *Search Results for* "${query}":\n\n`;
+        const movies = response.data.result.slice(0, 5); // Get the first 5 movies
+        let movieList = `🎥 *Search Results for* "${query}":\n\n`;
+
+        // Display movie list to the user
         movies.forEach((movie, index) => {
-            movieList += `*${index + 1}.* ${movie.title}\n🔗 [Download Link](${movie.link})\n\n`;
+            movieList += `*${index + 1}.* ${movie.title}\n🔗 [View Movie](${movie.link})\n\n`;
         });
 
-        bot.sendMessage(chatId, movieList, { parse_mode: "Markdown" });
+        await ctx.reply(movieList, { parse_mode: "Markdown" });
+
     } catch (error) {
-        console.error("Error fetching movies:", error);
-        bot.sendMessage(chatId, "❌ An error occurred while searching. Please try again later.");
+        console.error("Error while searching for movies:", error.message || error);
+        ctx.reply("❌ An error occurred while searching. Please try again later.");
     }
+});
+
+// Start the bot
+bot.launch().then(() => {
+    console.log("🎬 CineMind Movie Bot is running...");
+}).catch((error) => {
+    console.error("Failed to start bot:", error.message || error);
 });
