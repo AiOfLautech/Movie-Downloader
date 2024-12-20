@@ -1,14 +1,13 @@
 {
-  "name": "sinhalasub-bot",
+  "name": "cinemind-telegram-bot",
   "version": "1.0.0",
-  "description": "Telegram bot for SinhalaSub movie search and download.",
+  "description": "A Telegram bot to search and download movies from SinhalaSub",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js"
   },
   "dependencies": {
     "axios": "^1.4.0",
-    "mrnima-moviedl": "^1.0.0",
     "telegraf": "^4.12.3"
   }
 }
