@@ -2,7 +2,7 @@ const { Telegraf } = require("telegraf"); // Import Telegraf library
 const axios = require("axios");
 
 // Initialize the bot with your bot token
-const bot = new Telegraf("YOUR_TELEGRAM_BOT_TOKEN"); // Replace with your Telegram Bot Token
+const bot = new Telegraf("7263499266:AAFA6iaa0GfgcaIBViB4QF1EnN0qV3tqRq0"); // Replace with your Telegram Bot Token
 
 // Command: /start
 bot.start((ctx) => {
