@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: cinemind-bot
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node bot.js
+    routes:
+      - src: /.* 
+        dest: bot.js
