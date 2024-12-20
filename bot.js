@@ -15,7 +15,10 @@ bot.start((ctx) => {
 
 // Command: /owner
 bot.command("owner", (ctx) => {
-  ctx.reply("🤖 Bot Owner:\n*AI Of Lautech*\n📞 WhatsApp: +2348089336992", { parse_mode: "Markdown" });
+  ctx.reply(
+    "🤖 Bot Owner:\n*David Cyril*\n📞 WhatsApp: +1234567890",
+    { parse_mode: "Markdown" }
+  );
 });
 
 // Command: /download
@@ -28,24 +31,31 @@ bot.command("download", async (ctx) => {
   try {
     ctx.reply(`🔍 Searching for "${movieName}"...`);
 
-    // Search for movies
-    const searchUrl = `https://api-site-2.vercel.app/api/sinhalasub/search?query=${encodeURIComponent(movieName)}`;
+    // Correct API URL with `q` parameter
+    const searchUrl = `https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(movieName)}`;
     const searchResponse = await axios.get(searchUrl);
+
+    // Get the results
     const movies = searchResponse.data.result || [];
 
     if (movies.length === 0) {
       return ctx.reply(`⚠️ No results found for "${movieName}".`);
     }
 
-    // Display search results
+    // Format and display the results
     let movieList = `🎥 *Search Results for "${movieName}":*\n\n`;
     movies.slice(0, 10).forEach((movie, index) => {
-      movieList += `${index + 1}. *${movie.title}*\n🔗 [Link](${movie.link})\n\n`;
+      movieList += `${index + 1}. *${movie.title}* (${movie.year})\n`;
+      movieList += `   🎞️ IMDb: ${movie.imdb}\n`;
+      movieList += `   🔗 [Watch Here](${movie.link})\n\n`;
     });
 
     ctx.replyWithMarkdown(movieList);
   } catch (error) {
     console.error("Error during movie search:", error.message);
+    if (error.response) {
+      console.error("API response error:", error.response.data);
+    }
     ctx.reply("❌ An error occurred while searching for the movie. Please try again.");
   }
 });
