@@ -1,48 +1,121 @@
-require("dotenv").config();
-const { Telegraf, Markup } = require("telegraf");
-const axios = require("axios");
+const { Telegraf, Markup } = require('telegraf');
+const axios = require('axios');
+require('dotenv').config();  // Load environment variables from .env
 
-// Initialize the bot with your token
+// Telegram Bot Token
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// API Keys and Base URLs
-const tmdbApiKey = process.env.TMDB_API_KEY; // TMDB API Key
-const omdbApiKey = process.env.OMDB_API_KEY; // OMDB API Key
-const sinhalaSubBaseURL = "https://api-site-2.vercel.app/api/sinhalasub";
-
-// Middleware for session handling
-bot.use((ctx, next) => {
-  if (!ctx.session) ctx.session = {};
-  return next();
-});
+// Your API keys from the .env file
+const tmdbApiKey = process.env.TMDB_API_KEY;  // TMDb API Key
+const omdbApiKey = process.env.OMDB_API_KEY;  // OMDb API Key
 
 // Command: /start
 bot.start((ctx) => {
   ctx.reply(
     "👋 *Welcome to CineMindBot!*\n\n" +
-      "Here are the available commands:\n\n" +
-      "🎥 `/download <movie_name>` - Search and download movies.\n" +
-      "🔥 `/recommend` - Get trending movies.\n" +
-      "📝 `/feedback` - Provide feedback or suggestions.\n" +
-      "📜 `/history` - View your search history.\n" +
-      "🌐 `/language` - Change your preferred language.\n" +
-      "🎬 `/info <movie_name>` - Get more movie details.\n" +
-      "🙋 `/owner` - Get the bot owner's contact info.\n\n" +
-      "_Powered by AI Of Lautech_",
-    { parse_mode: "Markdown" }
+    "Here are the available commands:\n\n" +
+    "🎥 `/download <movie_name>` - Search and download movies.\n" +
+    "🙋 `/owner` - Get bot owner's contact info.\n" +
+    "📝 `/feedback` - Provide feedback or suggestions.\n" +
+    "🔥 `/recommend` - Get movie recommendations.\n" +
+    "📜 `/history` - View your search history.\n" +
+    "🌐 `/language` - Change your preferred language.\n" +
+    "🎬 `/info <movie_name>` - Get more movie details.\n\n" +
+    "_Powered by AI Of Lautech_",
+    { parse_mode: 'Markdown' }
   );
 });
 
 // Command: /owner
-bot.command("owner", (ctx) => {
+bot.command('owner', (ctx) => {
   ctx.reply(
     "🤖 *Bot Owner:*\n*AI Of Lautech*\n📞 WhatsApp: +2348089336992",
-    { parse_mode: "Markdown" }
+    { parse_mode: 'Markdown' }
   );
 });
 
+// Command: /download
+bot.command('download', async (ctx) => {
+  const movieName = ctx.message.text.split(' ').slice(1).join(' ');
+  if (!movieName) {
+    return ctx.reply("⚠️ Please provide a movie name! Example: `/download Deadpool`");
+  }
+
+  // Store the search in session
+  if (!ctx.session.history) {
+    ctx.session.history = [];
+  }
+  ctx.session.history.push(movieName);
+
+  // Limit history to the last 10 searches
+  if (ctx.session.history.length > 10) {
+    ctx.session.history.shift();
+  }
+
+  try {
+    ctx.reply(`🔍 Searching for "${movieName}"...`);
+
+    const searchUrl = `https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(movieName)}`;
+    const searchResponse = await axios.get(searchUrl);
+    const movies = searchResponse.data.result || [];
+
+    if (movies.length === 0) {
+      return ctx.reply(`⚠️ No results found for "${movieName}".`);
+    }
+
+    const buttons = movies.slice(0, 5).map((movie, index) => {
+      return [
+        Markup.button.callback(
+          `${index + 1}. ${movie.title} (${movie.year})`,
+          `movie_${index}`
+        ),
+      ];
+    });
+
+    ctx.session.movies = movies;
+
+    ctx.reply(
+      `🎥 *Search Results for "${movieName}":*\n\n_Select a movie below to get the download link._`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: Markup.inlineKeyboard(buttons),
+      }
+    );
+  } catch (error) {
+    console.error("Error fetching movies:", error.message);
+    ctx.reply("❌ An error occurred while searching. Please try again.");
+  }
+});
+
+// Handle movie selection
+bot.action(/movie_(\d+)/, async (ctx) => {
+  const movieIndex = parseInt(ctx.match[1]);
+  const selectedMovie = ctx.session.movies[movieIndex];
+
+  if (!selectedMovie) {
+    return ctx.reply("❌ Movie details not found. Please search again.");
+  }
+
+  try {
+    ctx.reply(`🔗 Fetching download links for "${selectedMovie.title}"...`);
+
+    const pixeldrainLink = `https://pixeldrain.com/api/file/${selectedMovie.fileId}?download`;
+
+    ctx.reply(
+      `🎥 *Download Links for "${selectedMovie.title}":*\n\n` +
+        `1️⃣ [Direct Download](${pixeldrainLink})\n` +
+        `2️⃣ [Watch on SinhalaSub](${selectedMovie.link})\n\n` +
+        "_Powered by AI Of Lautech_",
+      { parse_mode: 'Markdown' }
+    );
+  } catch (error) {
+    console.error("Error fetching download link:", error.message);
+    ctx.reply("❌ An error occurred while fetching the download link. Please try again.");
+  }
+});
+
 // Command: /recommend - Trending Movies
-bot.command("recommend", async (ctx) => {
+bot.command('recommend', async (ctx) => {
   try {
     const trendingUrl = `https://api.themoviedb.org/3/trending/movie/day?api_key=${tmdbApiKey}`;
     const trendingResponse = await axios.get(trendingUrl);
@@ -52,144 +125,150 @@ bot.command("recommend", async (ctx) => {
       return ctx.reply("⚠️ No trending movies found.");
     }
 
-    const buttons = trendingMovies.slice(0, 5).map((movie, index) => [
-      Markup.button.callback(
-        `${index + 1}. ${movie.title} (${movie.release_date.substring(0, 4)})`,
-        `recommend_${index}`
-      ),
-    ]);
+    const buttons = trendingMovies.slice(0, 5).map((movie, index) => {
+      return [
+        Markup.button.callback(
+          `${index + 1}. ${movie.title} (${movie.release_date.substring(0, 4)})`,
+          `recommend_${index}`
+        ),
+      ];
+    });
 
     ctx.session.trendingMovies = trendingMovies;
 
     ctx.reply(
       "🔥 *Trending Movies Today:*\n\n_Select a movie below to get more details._",
       {
-        parse_mode: "Markdown",
+        parse_mode: 'Markdown',
         reply_markup: Markup.inlineKeyboard(buttons),
       }
     );
   } catch (error) {
     console.error("Error fetching trending movies:", error.message);
-    ctx.reply("❌ An error occurred while fetching trending movies.");
+    ctx.reply("❌ An error occurred while fetching the trending movies. Please try again.");
   }
 });
 
-// Handle Recommendation Selection
+// Handle recommendation selection
 bot.action(/recommend_(\d+)/, async (ctx) => {
-  const index = parseInt(ctx.match[1]);
-  const movie = ctx.session.trendingMovies[index];
+  const movieIndex = parseInt(ctx.match[1]);
+  const selectedMovie = ctx.session.trendingMovies[movieIndex];
 
-  if (!movie) {
-    return ctx.reply("⚠️ Movie not found. Please try again.");
+  if (!selectedMovie) {
+    return ctx.reply("❌ Movie details not found. Please try again.");
   }
 
-  const posterUrl = movie.poster_path
-    ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-    : "https://via.placeholder.com/500x750?text=No+Image";
+  try {
+    const movieDetails = await axios.get(
+      `https://api.themoviedb.org/3/movie/${selectedMovie.id}?api_key=${tmdbApiKey}`
+    );
+    const movieOverview = movieDetails.data.overview;
+    const movieRating = movieDetails.data.vote_average;
 
-  ctx.replyWithPhoto(posterUrl, {
-    caption: `🎥 *${movie.title}*\n` +
-      `📅 Release Date: ${movie.release_date}\n` +
-      `⭐ Rating: ${movie.vote_average}\n` +
-      `📖 Overview: ${movie.overview}\n\n` +
-      "_Powered by AI Of Lautech_",
-    parse_mode: "Markdown",
+    ctx.reply(
+      `🎥 *${selectedMovie.title}*\n` +
+      `Rating: ${movieRating}\n` +
+      `Overview: ${movieOverview}\n\n` +
+      "_Powered by TMDB_"
+    );
+  } catch (error) {
+    console.error("Error fetching movie details:", error.message);
+    ctx.reply("❌ An error occurred while fetching the movie details. Please try again.");
+  }
+});
+
+// Command: /feedback - User Feedback
+bot.command('feedback', (ctx) => {
+  const buttons = [
+    Markup.button.callback("👍 Good", "feedback_good"),
+    Markup.button.callback("👎 Bad", "feedback_bad"),
+    Markup.button.callback("💬 Suggestion", "feedback_suggestion"),
+  ];
+
+  ctx.reply("We'd love your feedback! Please choose one option below:", {
+    reply_markup: Markup.inlineKeyboard(buttons),
   });
 });
 
-// Command: /download
-bot.command("download", async (ctx) => {
-  const movieName = ctx.message.text.split(" ").slice(1).join(" ");
-  if (!movieName) {
-    return ctx.reply("⚠️ Please provide a movie name! Example: `/download Deadpool`");
-  }
+// Handle feedback responses
+bot.action("feedback_good", (ctx) => {
+  ctx.reply("Thank you for your positive feedback! 😊");
+});
 
-  // Store history
-  if (!ctx.session.history) ctx.session.history = [];
-  ctx.session.history.push(movieName);
-  if (ctx.session.history.length > 10) ctx.session.history.shift();
+bot.action("feedback_bad", (ctx) => {
+  ctx.reply("Sorry to hear that! 😔 Please let us know how we can improve.");
+});
 
-  try {
-    ctx.reply(`🔍 Searching for "${movieName}"...`);
+bot.action("feedback_suggestion", (ctx) => {
+  ctx.reply("Please send your suggestion as a message. We'll review it soon!");
+});
 
-    const searchUrl = `${sinhalaSubBaseURL}/search?q=${encodeURIComponent(movieName)}`;
-    const response = await axios.get(searchUrl);
-    const movies = response.data.result || [];
-
-    if (movies.length === 0) {
-      return ctx.reply(`⚠️ No results found for "${movieName}".`);
-    }
-
-    const buttons = movies.slice(0, 5).map((movie, index) => [
-      Markup.button.callback(`${index + 1}. ${movie.title}`, `download_${index}`),
-    ]);
-
-    ctx.session.downloadMovies = movies;
-
-    ctx.reply(
-      `🎥 *Search Results for "${movieName}":*\n\n_Select a movie to get the download link._`,
-      {
-        parse_mode: "Markdown",
-        reply_markup: Markup.inlineKeyboard(buttons),
-      }
-    );
-  } catch (error) {
-    console.error("Error fetching movie:", error.message);
-    ctx.reply("❌ An error occurred. Please try again.");
+// Command: /history - Search History
+bot.command('history', (ctx) => {
+  if (ctx.session.history && ctx.session.history.length > 0) {
+    const historyList = ctx.session.history.join("\n");
+    ctx.reply(`📜 *Search History:*\n\n${historyList}`);
+  } else {
+    ctx.reply("⚠️ No search history found.");
   }
 });
 
-// Handle Download Selection
-bot.action(/download_(\d+)/, async (ctx) => {
-  const index = parseInt(ctx.match[1]);
-  const movie = ctx.session.downloadMovies[index];
+// Command: /language - Change Language
+bot.command('language', (ctx) => {
+  const buttons = [
+    Markup.button.callback("🇬🇧 English", "lang_en"),
+    Markup.button.callback("🇪🇸 Español", "lang_es"),
+    Markup.button.callback("🇫🇷 Français", "lang_fr"),
+  ];
 
-  if (!movie) {
-    return ctx.reply("⚠️ Movie not found.");
-  }
-
-  ctx.reply(
-    `🎥 *Download Links for "${movie.title}":*\n\n` +
-      `1️⃣ [Direct Download](https://pixeldrain.com/api/file/${movie.fileId}?download)\n` +
-      `2️⃣ [Watch on SinhalaSub](${movie.link})\n\n` +
-      "_Powered by AI Of Lautech_",
-    { parse_mode: "Markdown" }
-  );
+  ctx.reply("Please choose your preferred language:", {
+    reply_markup: Markup.inlineKeyboard(buttons),
+  });
 });
 
-// Command: /info
-bot.command("info", async (ctx) => {
-  const movieName = ctx.message.text.split(" ").slice(1).join(" ");
+// Handle language change
+bot.action("lang_en", (ctx) => {
+  ctx.reply("Language changed to English. All commands will now be in English.");
+});
+
+bot.action("lang_es", (ctx) => {
+  ctx.reply("Idioma cambiado a Español. Todos los comandos estarán en español.");
+});
+
+bot.action("lang_fr", (ctx) => {
+  ctx.reply("Langue changée en Français. Toutes les commandes seront en français.");
+});
+
+// Command: /info - Get More Movie Info
+bot.command('info', async (ctx) => {
+  const movieName = ctx.message.text.split(' ').slice(1).join(' ');
   if (!movieName) {
-    return ctx.reply("⚠️ Please provide a movie name! Example: `/info Inception`");
+    return ctx.reply("⚠️ Please provide a movie name! Example: `/info Deadpool`");
   }
 
   try {
     const imdbUrl = `http://www.omdbapi.com/?t=${encodeURIComponent(movieName)}&apikey=${omdbApiKey}`;
-    const response = await axios.get(imdbUrl);
-    const movie = response.data;
+    const imdbResponse = await axios.get(imdbUrl);
+    const movie = imdbResponse.data;
 
     if (movie.Response === "False") {
-      return ctx.reply("⚠️ No movie found.");
+      return ctx.reply("⚠️ No movie found with that name.");
     }
 
     ctx.reply(
       `🎬 *${movie.Title}*\n` +
-        `⭐ Rating: ${movie.imdbRating}\n` +
-        `📅 Year: ${movie.Year}\n` +
-        `📝 Genre: ${movie.Genre}\n` +
-        `📖 Plot: ${movie.Plot}\n\n` +
-        "_Powered by OMDB_"
+      `⭐ Rating: ${movie.imdbRating}\n` +
+      `📅 Year: ${movie.Year}\n` +
+      `📝 Genre: ${movie.Genre}\n` +
+      `📖 Plot: ${movie.Plot}`
     );
   } catch (error) {
-    console.error("Error fetching movie details:", error.message);
-    ctx.reply("❌ An error occurred. Please try again.");
+    console.error("Error fetching movie info:", error.message);
+    ctx.reply("❌ An error occurred while fetching the movie info. Please try again.");
   }
 });
 
 // Launch the bot
-bot.launch().then(() => console.log("🤖 CineMindBot is running!"));
-
-// Graceful shutdown
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
+bot.launch().then(() => {
+  console.log("🤖 CineMindBot is running!");
+});
