@@ -1,0 +1,11 @@
+# Ignore the .env file (environment variables)
+.env
+
+# Node.js modules
+node_modules/
+
+# Logs
+*.log
+
+# npm package lock
+package-lock.json
