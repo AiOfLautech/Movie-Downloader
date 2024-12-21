@@ -1,16 +1,20 @@
 {
   "name": "cinemind-bot",
   "version": "1.0.0",
-  "description": "Telegram bot for movie downloads and recommendations",
+  "description": "A Telegram bot for movie information and downloads",
   "main": "bot.js",
   "scripts": {
-    "start": "node bot.js"
+    "start": "node bot.js",
+    "dev": "nodemon bot.js"
   },
   "dependencies": {
     "axios": "^1.0.0",
-    "telegraf": "^4.0.0"
+    "dotenv": "^16.0.0",
+    "telegraf": "^4.10.0"
   },
   "engines": {
-    "node": "14.x"
-  }
+    "node": ">=16.x"
+  },
+  "author": "AI Of Lautech",
+  "license": "ISC"
 }
