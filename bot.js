@@ -1,13 +1,14 @@
-const { Telegraf, Markup } = require('telegraf');
-const axios = require('axios');
-require('dotenv').config();  // Load environment variables from .env
+// Load environment variables from .env file
+require('dotenv').config();
 
-// Telegram Bot Token
+const { Telegraf, Markup } = require("telegraf");
+const axios = require("axios");
+
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// Your API keys from the .env file
-const tmdbApiKey = process.env.TMDB_API_KEY;  // TMDb API Key
-const omdbApiKey = process.env.OMDB_API_KEY;  // OMDb API Key
+// Your API keys
+const tmdbApiKey = process.env.TMDB_API_KEY;  // Replace with your actual TMDB API key from .env
+const omdbApiKey = process.env.OMDB_API_KEY;  // Replace with your actual OMDB API key from .env
 
 // Command: /start
 bot.start((ctx) => {
@@ -22,21 +23,21 @@ bot.start((ctx) => {
     "🌐 `/language` - Change your preferred language.\n" +
     "🎬 `/info <movie_name>` - Get more movie details.\n\n" +
     "_Powered by AI Of Lautech_",
-    { parse_mode: 'Markdown' }
+    { parse_mode: "Markdown" }
   );
 });
 
 // Command: /owner
-bot.command('owner', (ctx) => {
+bot.command("owner", (ctx) => {
   ctx.reply(
     "🤖 *Bot Owner:*\n*AI Of Lautech*\n📞 WhatsApp: +2348089336992",
-    { parse_mode: 'Markdown' }
+    { parse_mode: "Markdown" }
   );
 });
 
 // Command: /download
-bot.command('download', async (ctx) => {
-  const movieName = ctx.message.text.split(' ').slice(1).join(' ');
+bot.command("download", async (ctx) => {
+  const movieName = ctx.message.text.split(" ").slice(1).join(" ");
   if (!movieName) {
     return ctx.reply("⚠️ Please provide a movie name! Example: `/download Deadpool`");
   }
@@ -77,7 +78,7 @@ bot.command('download', async (ctx) => {
     ctx.reply(
       `🎥 *Search Results for "${movieName}":*\n\n_Select a movie below to get the download link._`,
       {
-        parse_mode: 'Markdown',
+        parse_mode: "Markdown",
         reply_markup: Markup.inlineKeyboard(buttons),
       }
     );
@@ -106,7 +107,7 @@ bot.action(/movie_(\d+)/, async (ctx) => {
         `1️⃣ [Direct Download](${pixeldrainLink})\n` +
         `2️⃣ [Watch on SinhalaSub](${selectedMovie.link})\n\n` +
         "_Powered by AI Of Lautech_",
-      { parse_mode: 'Markdown' }
+      { parse_mode: "Markdown" }
     );
   } catch (error) {
     console.error("Error fetching download link:", error.message);
@@ -115,7 +116,7 @@ bot.action(/movie_(\d+)/, async (ctx) => {
 });
 
 // Command: /recommend - Trending Movies
-bot.command('recommend', async (ctx) => {
+bot.command("recommend", async (ctx) => {
   try {
     const trendingUrl = `https://api.themoviedb.org/3/trending/movie/day?api_key=${tmdbApiKey}`;
     const trendingResponse = await axios.get(trendingUrl);
@@ -139,7 +140,7 @@ bot.command('recommend', async (ctx) => {
     ctx.reply(
       "🔥 *Trending Movies Today:*\n\n_Select a movie below to get more details._",
       {
-        parse_mode: 'Markdown',
+        parse_mode: "Markdown",
         reply_markup: Markup.inlineKeyboard(buttons),
       }
     );
@@ -178,7 +179,7 @@ bot.action(/recommend_(\d+)/, async (ctx) => {
 });
 
 // Command: /feedback - User Feedback
-bot.command('feedback', (ctx) => {
+bot.command("feedback", (ctx) => {
   const buttons = [
     Markup.button.callback("👍 Good", "feedback_good"),
     Markup.button.callback("👎 Bad", "feedback_bad"),
@@ -204,7 +205,7 @@ bot.action("feedback_suggestion", (ctx) => {
 });
 
 // Command: /history - Search History
-bot.command('history', (ctx) => {
+bot.command("history", (ctx) => {
   if (ctx.session.history && ctx.session.history.length > 0) {
     const historyList = ctx.session.history.join("\n");
     ctx.reply(`📜 *Search History:*\n\n${historyList}`);
@@ -214,7 +215,7 @@ bot.command('history', (ctx) => {
 });
 
 // Command: /language - Change Language
-bot.command('language', (ctx) => {
+bot.command("language", (ctx) => {
   const buttons = [
     Markup.button.callback("🇬🇧 English", "lang_en"),
     Markup.button.callback("🇪🇸 Español", "lang_es"),
@@ -240,8 +241,8 @@ bot.action("lang_fr", (ctx) => {
 });
 
 // Command: /info - Get More Movie Info
-bot.command('info', async (ctx) => {
-  const movieName = ctx.message.text.split(' ').slice(1).join(' ');
+bot.command("info", async (ctx) => {
+  const movieName = ctx.message.text.split(" ").slice(1).join(" ");
   if (!movieName) {
     return ctx.reply("⚠️ Please provide a movie name! Example: `/info Deadpool`");
   }
