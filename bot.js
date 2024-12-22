@@ -1,17 +1,23 @@
-// Load environment variables from .env file
-require("dotenv").config();
+require('dotenv').config(); // Load environment variables from .env file
 
-const { Telegraf, Markup, session } = require("telegraf");
-const axios = require("axios");
+const { Telegraf, Markup, session } = require('telegraf');
+const axios = require('axios');
 
-const bot = new Telegraf(process.env.BOT_TOKEN);
-
-// Use session middleware for persistent data
-bot.use(session());
-
-// Your API keys
+// API keys and tokens from .env file
 const tmdbApiKey = process.env.TMDB_API_KEY;
 const omdbApiKey = process.env.OMDB_API_KEY;
+const botToken = process.env.BOT_TOKEN;
+const webhookUrl = process.env.WEBHOOK_URL;
+
+if (!tmdbApiKey || !omdbApiKey || !botToken || !webhookUrl) {
+  console.error("⚠️ Missing API keys, bot token, or webhook URL. Please check your .env file.");
+  process.exit(1);
+}
+
+const bot = new Telegraf(botToken);
+
+// Middleware: Enable session handling
+bot.use(session());
 
 // Command: /start
 bot.start((ctx) => {
@@ -45,35 +51,22 @@ bot.command("download", async (ctx) => {
     return ctx.reply("⚠️ Please provide a movie name! Example: `/download Deadpool`");
   }
 
-  // Store the search in session
-  if (!ctx.session.history) {
-    ctx.session.history = [];
-  }
+  if (!ctx.session.history) ctx.session.history = [];
   ctx.session.history.push(movieName);
-
-  // Limit history to the last 10 searches
-  if (ctx.session.history.length > 10) {
-    ctx.session.history.shift();
-  }
+  if (ctx.session.history.length > 10) ctx.session.history.shift();
 
   try {
     ctx.reply(`🔍 Searching for "${movieName}"...`);
-
-    const searchUrl = `https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(
-      movieName
-    )}`;
-    const searchResponse = await axios.get(searchUrl);
-    const movies = searchResponse.data.result || [];
+    const searchUrl = `https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(movieName)}`;
+    const { data } = await axios.get(searchUrl);
+    const movies = data.result || [];
 
     if (movies.length === 0) {
       return ctx.reply(`⚠️ No results found for "${movieName}".`);
     }
 
     const buttons = movies.slice(0, 5).map((movie, index) => [
-      Markup.button.callback(
-        `${index + 1}. ${movie.title} (${movie.year})`,
-        `movie_${index}`
-      ),
+      Markup.button.callback(`${index + 1}. ${movie.title} (${movie.year})`, `movie_${index}`)
     ]);
 
     ctx.session.movies = movies;
@@ -118,22 +111,19 @@ bot.action(/movie_(\d+)/, async (ctx) => {
   }
 });
 
-// Command: /recommend
+// Command: /recommend - Trending Movies
 bot.command("recommend", async (ctx) => {
   try {
     const trendingUrl = `https://api.themoviedb.org/3/trending/movie/day?api_key=${tmdbApiKey}`;
-    const trendingResponse = await axios.get(trendingUrl);
-    const trendingMovies = trendingResponse.data.results || [];
+    const { data } = await axios.get(trendingUrl);
+    const trendingMovies = data.results || [];
 
     if (trendingMovies.length === 0) {
       return ctx.reply("⚠️ No trending movies found.");
     }
 
     const buttons = trendingMovies.slice(0, 5).map((movie, index) => [
-      Markup.button.callback(
-        `${index + 1}. ${movie.title} (${movie.release_date.substring(0, 4)})`,
-        `recommend_${index}`
-      ),
+      Markup.button.callback(`${index + 1}. ${movie.title} (${movie.release_date.substring(0, 4)})`, `recommend_${index}`)
     ]);
 
     ctx.session.trendingMovies = trendingMovies;
@@ -169,9 +159,9 @@ bot.action(/recommend_(\d+)/, async (ctx) => {
 
     ctx.reply(
       `🎥 *${selectedMovie.title}*\n` +
-        `Rating: ${movieRating}\n` +
-        `Overview: ${movieOverview}\n\n` +
-        "_Powered by TMDB_"
+      `Rating: ${movieRating}\n` +
+      `Overview: ${movieOverview}\n\n` +
+      "_Powered by TMDB_"
     );
   } catch (error) {
     console.error("Error fetching movie details:", error.message);
@@ -192,18 +182,9 @@ bot.command("feedback", (ctx) => {
   });
 });
 
-// Handle feedback responses
-bot.action("feedback_good", (ctx) => {
-  ctx.reply("Thank you for your positive feedback! 😊");
-});
-
-bot.action("feedback_bad", (ctx) => {
-  ctx.reply("Sorry to hear that! 😔 Please let us know how we can improve.");
-});
-
-bot.action("feedback_suggestion", (ctx) => {
-  ctx.reply("Please send your suggestion as a message. We'll review it soon!");
-});
+bot.action("feedback_good", (ctx) => ctx.reply("Thank you for your positive feedback! 😊"));
+bot.action("feedback_bad", (ctx) => ctx.reply("Sorry to hear that! 😔 Please let us know how we can improve."));
+bot.action("feedback_suggestion", (ctx) => ctx.reply("Please send your suggestion as a message. We'll review it soon!"));
 
 // Command: /history
 bot.command("history", (ctx) => {
@@ -228,57 +209,42 @@ bot.command("language", (ctx) => {
   });
 });
 
-// Handle language change
-bot.action("lang_en", (ctx) => {
-  ctx.reply("Language changed to English. All commands will now be in English.");
-});
+bot.action("lang_en", (ctx) => ctx.reply("Language changed to English."));
+bot.action("lang_es", (ctx) => ctx.reply("Idioma cambiado a Español."));
+bot.action("lang_fr", (ctx) => ctx.reply("Langue changée en Français."));
 
-bot.action("lang_es", (ctx) => {
-  ctx.reply("Idioma cambiado a Español. Todos los comandos estarán en español.");
-});
-
-bot.action("lang_fr", (ctx) => {
-  ctx.reply("Langue changée en Français. Toutes les commandes seront en français.");
-});
-
-// Command: /info
-bot.command("info", async (ctx) => {
-  const movieName = ctx.message.text.split(" ").slice(1).join(" ");
-  if (!movieName) {
-    return ctx.reply("⚠️ Please provide a movie name! Example: `/info Deadpool`");
-  }
-
+// Webhook setup
+(async () => {
   try {
-    const imdbUrl = `http://www.omdbapi.com/?t=${encodeURIComponent(movieName)}&apikey=${omdbApiKey}`;
-    const imdbResponse = await axios.get(imdbUrl);
-    const movie = imdbResponse.data;
-
-    if (movie.Response === "False") {
-      return ctx.reply("⚠️ No movie found with that name.");
-    }
-
-    ctx.reply(
-      `🎬 *${movie.Title}*\n` +
-        `⭐ Rating: ${movie.imdbRating}\n` +
-        `📅 Year: ${movie.Year}\n` +
-        `📝 Genre: ${movie.Genre}\n` +
-        `📖 Plot: ${movie.Plot}\n\n` +
-        `🎭 Actors: ${movie.Actors}\n` +
-        `🎥 Director: ${movie.Director}\n\n` +
-        "_Powered by OMDB_",
-      { parse_mode: "Markdown" }
-    );
+    const domain = webhookUrl.endsWith("/") ? webhookUrl.slice(0, -1) : webhookUrl;
+    console.log("Setting webhook...");
+    await bot.telegram.setWebhook(`${domain}/bot${botToken}`);
+    console.log(`✅ Webhook successfully set to ${domain}/bot${botToken}`);
   } catch (error) {
-    console.error("Error fetching movie info:", error.message);
-    ctx.reply("❌ An error occurred while fetching the movie info. Please try again.");
+    console.error("❌ Failed to set webhook:", error.message);
+    process.exit(1);
   }
+})();
+
+const express = require("express");
+const bodyParser = require("body-parser");
+const app = express();
+
+app.use(bodyParser.json());
+
+// Webhook route
+app.post(`/bot${botToken}`, (req, res) => {
+  bot.handleUpdate(req.body);
+  res.status(200).send("OK");
 });
 
-// Launch the bot
-bot.launch().then(() => {
-  console.log("🤖 CineMindBot is running!");
+// Default route
+app.get("/", (req, res) => {
+  res.send("🤖 CineMindBot is running with webhook support!");
 });
 
-// Graceful shutdown on SIGINT and SIGTERM
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
+// Start the server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server is running on port ${PORT}`);
+});
