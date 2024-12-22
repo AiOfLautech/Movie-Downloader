@@ -30,7 +30,7 @@ bot.command("download", async (ctx) => {
     ctx.reply(`🔍 Searching for "${movieName}"...`);
 
     // Fetch movie search results
-    const searchUrl = `https://api-site-2.vercel.app/api/sinhalasub/search?query=${encodeURIComponent(movieName)}`;
+    const searchUrl = `https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(movieName)}`;
     const response = await axios.get(searchUrl);
     const movies = response.data.result || [];
 
