@@ -1,7 +1,7 @@
 {
   "welcome_message": "👋 ¡Bienvenido a CineMindBot!",
   "commands_list": "Aquí están los comandos disponibles:\n🎥 `/download <nombre_de_pelicula>` - Buscar y descargar películas\n📜 `/subtitle <nombre_de_pelicula>` - Descargar subtítulos para películas\n🔥 `/recommend` - Obtener recomendaciones de películas populares\n🎬 `/info <nombre_de_pelicula>` - Obtener información detallada de la película\n🌐 `/language` - Ver o cambiar preferencias de idioma\n📝 `/feedback` - Proporcionar comentarios o sugerencias\n🙋 `/owner` - Obtener información de contacto del propietario del bot",
-  "owner_message": "🤖 Propietario del Bot:\nDavid Cyril\n📞 WhatsApp: +1234567890",
+  "owner_message": "🤖 Propietario del Bot:\nAI OF LAUTECH\n📞 WhatsApp: +2348089336992",
   "download_no_movie": "⚠️ ¡Por favor, proporciona un nombre de película! Ejemplo: `/download Deadpool`",
   "download_searching": "🔍 Buscando \"{{movieName}}\"...",
   "download_no_results": "⚠️ No se encontraron resultados para \"{{movieName}}\".",
@@ -15,4 +15,19 @@
   "rating": "Calificación",
   "no_trending_movies": "⚠️ No se encontraron películas populares.",
   "movie_info": "*{{title}}*\n⭐ Calificación: {{rating}}\n📅 Año: {{year}}\n📝 Género: {{genre}}\n📖 Resumen: {{plot}}",
-  "info_no_movie": "⚠️ ¡Por favor, proporciona un nombre de película! Ejemplo: `/info Deadpool
+  "info_no_movie": "⚠️ ¡Por favor, proporciona un nombre de película! Ejemplo: `/info Deadpool`",
+  "no_movie_found": "⚠️ No se encontró ninguna película con ese nombre.",
+  "current_language": "🌐 Tu preferencia de idioma actual es",
+  "change_language_prompt": "Para cambiarla, responde con una de las siguientes opciones:\n- `English`\n- `French`\n- `Spanish`\n- `German`\n- `Hindi`",
+  "no_language_set": "🌐 Aún no has establecido una preferencia de idioma.",
+  "select_language_prompt": "Responde con una de las siguientes opciones para seleccionar tu idioma:\n- `English`\n- `French`\n- `Spanish`\n- `German`\n- `Hindi`",
+  "language_set": "✅ Tu preferencia de idioma se ha establecido en: {{language}}",
+  "feedback_prompt": "¡Nos encantaría recibir tus comentarios! Responde con una de las siguientes opciones:\n- `Good` - Si te gusta el bot\n- `Bad` - Si no te gusta el bot\n- `Suggestion <tu_mensaje>` - Para compartir sugerencias",
+  "good_feedback": "Bueno",
+  "bad_feedback": "Malo",
+  "suggestion_feedback": "Sugerencia <tu_mensaje>",
+  "good_feedback_response": "¡Gracias por tu comentario positivo! 😊",
+  "bad_feedback_response": "Lamentamos escuchar eso. ¿Puedes compartir cómo podemos mejorar?",
+  "thank_you_suggestion": "¡Gracias por tu sugerencia! La tendremos en cuenta. 🙏",
+  "suggestion_prompt": "⚠️ Por favor, proporciona tu sugerencia. Ejemplo: `Suggestion Agregar más funciones`"
+}
