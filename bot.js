@@ -1,31 +1,28 @@
 // Load environment variables from .env file
-require("dotenv").config();
+require('dotenv').config();
 
-const { Telegraf, Markup, session } = require("telegraf");
+const { Telegraf, Markup } = require("telegraf");
 const axios = require("axios");
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// Use session middleware for persistent data
-bot.use(session());
-
 // Your API keys
-const tmdbApiKey = process.env.TMDB_API_KEY;
-const omdbApiKey = process.env.OMDB_API_KEY;
+const tmdbApiKey = process.env.TMDB_API_KEY;  // Replace with your actual TMDB API key from .env
+const omdbApiKey = process.env.OMDB_API_KEY;  // Replace with your actual OMDB API key from .env
 
 // Command: /start
 bot.start((ctx) => {
   ctx.reply(
     "👋 *Welcome to CineMindBot!*\n\n" +
-      "Here are the available commands:\n\n" +
-      "🎥 `/download <movie_name>` - Search and download movies.\n" +
-      "🙋 `/owner` - Get bot owner's contact info.\n" +
-      "📝 `/feedback` - Provide feedback or suggestions.\n" +
-      "🔥 `/recommend` - Get movie recommendations.\n" +
-      "📜 `/history` - View your search history.\n" +
-      "🌐 `/language` - Change your preferred language.\n" +
-      "🎬 `/info <movie_name>` - Get more movie details.\n\n" +
-      "_Powered by AI Of Lautech_",
+    "Here are the available commands:\n\n" +
+    "🎥 `/download <movie_name>` - Search and download movies.\n" +
+    "🙋 `/owner` - Get bot owner's contact info.\n" +
+    "📝 `/feedback` - Provide feedback or suggestions.\n" +
+    "🔥 `/recommend` - Get movie recommendations.\n" +
+    "📜 `/history` - View your search history.\n" +
+    "🌐 `/language` - Change your preferred language.\n" +
+    "🎬 `/info <movie_name>` - Get more movie details.\n\n" +
+    "_Powered by AI Of Lautech_",
     { parse_mode: "Markdown" }
   );
 });
@@ -59,9 +56,7 @@ bot.command("download", async (ctx) => {
   try {
     ctx.reply(`🔍 Searching for "${movieName}"...`);
 
-    const searchUrl = `https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(
-      movieName
-    )}`;
+    const searchUrl = `https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(movieName)}`;
     const searchResponse = await axios.get(searchUrl);
     const movies = searchResponse.data.result || [];
 
@@ -69,12 +64,14 @@ bot.command("download", async (ctx) => {
       return ctx.reply(`⚠️ No results found for "${movieName}".`);
     }
 
-    const buttons = movies.slice(0, 5).map((movie, index) => [
-      Markup.button.callback(
-        `${index + 1}. ${movie.title} (${movie.year})`,
-        `movie_${index}`
-      ),
-    ]);
+    const buttons = movies.slice(0, 5).map((movie, index) => {
+      return [
+        Markup.button.callback(
+          `${index + 1}. ${movie.title} (${movie.year})`,
+          `movie_${index}`
+        ),
+      ];
+    });
 
     ctx.session.movies = movies;
 
@@ -118,7 +115,7 @@ bot.action(/movie_(\d+)/, async (ctx) => {
   }
 });
 
-// Command: /recommend
+// Command: /recommend - Trending Movies
 bot.command("recommend", async (ctx) => {
   try {
     const trendingUrl = `https://api.themoviedb.org/3/trending/movie/day?api_key=${tmdbApiKey}`;
@@ -129,12 +126,14 @@ bot.command("recommend", async (ctx) => {
       return ctx.reply("⚠️ No trending movies found.");
     }
 
-    const buttons = trendingMovies.slice(0, 5).map((movie, index) => [
-      Markup.button.callback(
-        `${index + 1}. ${movie.title} (${movie.release_date.substring(0, 4)})`,
-        `recommend_${index}`
-      ),
-    ]);
+    const buttons = trendingMovies.slice(0, 5).map((movie, index) => {
+      return [
+        Markup.button.callback(
+          `${index + 1}. ${movie.title} (${movie.release_date.substring(0, 4)})`,
+          `recommend_${index}`
+        ),
+      ];
+    });
 
     ctx.session.trendingMovies = trendingMovies;
 
@@ -169,9 +168,9 @@ bot.action(/recommend_(\d+)/, async (ctx) => {
 
     ctx.reply(
       `🎥 *${selectedMovie.title}*\n` +
-        `Rating: ${movieRating}\n` +
-        `Overview: ${movieOverview}\n\n` +
-        "_Powered by TMDB_"
+      `Rating: ${movieRating}\n` +
+      `Overview: ${movieOverview}\n\n` +
+      "_Powered by TMDB_"
     );
   } catch (error) {
     console.error("Error fetching movie details:", error.message);
@@ -179,7 +178,7 @@ bot.action(/recommend_(\d+)/, async (ctx) => {
   }
 });
 
-// Command: /feedback
+// Command: /feedback - User Feedback
 bot.command("feedback", (ctx) => {
   const buttons = [
     Markup.button.callback("👍 Good", "feedback_good"),
@@ -205,7 +204,7 @@ bot.action("feedback_suggestion", (ctx) => {
   ctx.reply("Please send your suggestion as a message. We'll review it soon!");
 });
 
-// Command: /history
+// Command: /history - Search History
 bot.command("history", (ctx) => {
   if (ctx.session.history && ctx.session.history.length > 0) {
     const historyList = ctx.session.history.join("\n");
@@ -215,7 +214,7 @@ bot.command("history", (ctx) => {
   }
 });
 
-// Command: /language
+// Command: /language - Change Language
 bot.command("language", (ctx) => {
   const buttons = [
     Markup.button.callback("🇬🇧 English", "lang_en"),
@@ -241,7 +240,7 @@ bot.action("lang_fr", (ctx) => {
   ctx.reply("Langue changée en Français. Toutes les commandes seront en français.");
 });
 
-// Command: /info
+// Command: /info - Get More Movie Info
 bot.command("info", async (ctx) => {
   const movieName = ctx.message.text.split(" ").slice(1).join(" ");
   if (!movieName) {
@@ -259,14 +258,10 @@ bot.command("info", async (ctx) => {
 
     ctx.reply(
       `🎬 *${movie.Title}*\n` +
-        `⭐ Rating: ${movie.imdbRating}\n` +
-        `📅 Year: ${movie.Year}\n` +
-        `📝 Genre: ${movie.Genre}\n` +
-        `📖 Plot: ${movie.Plot}\n\n` +
-        `🎭 Actors: ${movie.Actors}\n` +
-        `🎥 Director: ${movie.Director}\n\n` +
-        "_Powered by OMDB_",
-      { parse_mode: "Markdown" }
+      `⭐ Rating: ${movie.imdbRating}\n` +
+      `📅 Year: ${movie.Year}\n` +
+      `📝 Genre: ${movie.Genre}\n` +
+      `📖 Plot: ${movie.Plot}`
     );
   } catch (error) {
     console.error("Error fetching movie info:", error.message);
@@ -278,7 +273,3 @@ bot.command("info", async (ctx) => {
 bot.launch().then(() => {
   console.log("🤖 CineMindBot is running!");
 });
-
-// Graceful shutdown on SIGINT and SIGTERM
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
