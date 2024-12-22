@@ -1,8 +1,11 @@
 require("dotenv").config(); // Load environment variables
-const { Telegraf, Markup } = require("telegraf");
+const { Telegraf } = require("telegraf");
 const axios = require("axios");
 
 const bot = new Telegraf(process.env.BOT_TOKEN); // Initialize bot
+
+// Temporary storage for user preferences (e.g., language)
+const userLanguages = {};
 
 // Command: /start
 bot.start((ctx) => {
@@ -12,8 +15,7 @@ bot.start((ctx) => {
       "📜 `/subtitle <movie_name>` - Download subtitles for movies\n" +
       "🔥 `/recommend` - Get trending movie recommendations\n" +
       "🎬 `/info <movie_name>` - Get detailed movie information\n" +
-      "🔗 `/direct <file_id>` - Get a direct download link for a file\n" +
-      "🗣️ `/language` - View or change language preferences\n" +
+      "🌐 `/language` - View or change language preferences\n" +
       "📝 `/feedback` - Provide feedback or suggestions\n" +
       "🙋 `/owner` - Get bot owner's contact info"
   );
@@ -21,7 +23,7 @@ bot.start((ctx) => {
 
 // Command: /owner
 bot.command("owner", (ctx) => {
-  ctx.reply("🤖 Bot Owner:\nAI OF LAUTECH\n📞 WhatsApp: +2348089336992");
+  ctx.reply("🤖 Bot Owner:\nDavid Cyril\n📞 WhatsApp: +1234567890");
 });
 
 // Command: /download
@@ -44,7 +46,10 @@ bot.command("download", async (ctx) => {
 
     const movieList = movies
       .slice(0, 10)
-      .map((movie, index) => `${index + 1}. ${movie.title}\n🔗 ${movie.link}`)
+      .map(
+        (movie, index) =>
+          `${index + 1}. ${movie.title}\n🔗 Direct Download: https://pixeldrain.com/api/file/${movie.link}?download`
+      )
       .join("\n\n");
 
     ctx.reply(`🎥 Search Results for "${movieName}":\n\n${movieList}`);
@@ -78,14 +83,14 @@ bot.command("subtitle", async (ctx) => {
       .slice(0, 10)
       .map(
         (subtitle, index) =>
-          `${index + 1}. Language: ${subtitle.attributes.language}\n🔗 ${subtitle.attributes.url}`
+          `${index + 1}. *${subtitle.attributes.language}*\n🔗 [Download Link](${subtitle.attributes.url})`
       )
       .join("\n\n");
 
-    ctx.reply(`📜 Subtitles for "${movieName}":\n\n${subtitleList}`);
+    ctx.replyWithMarkdown(`📜 *Subtitle Results for "${movieName}":*\n\n${subtitleList}`);
   } catch (error) {
     console.error("Error during subtitle search:", error.message);
-    ctx.reply("❌ An error occurred while searching for subtitles.");
+    ctx.reply("❌ An error occurred while searching for subtitles. Please try again.");
   }
 });
 
@@ -104,11 +109,11 @@ bot.command("recommend", async (ctx) => {
       .slice(0, 5)
       .map(
         (movie, index) =>
-          `${index + 1}. ${movie.title} (${movie.release_date.split("-")[0]})\n⭐ Rating: ${movie.vote_average}`
+          `${index + 1}. *${movie.title}* (${movie.release_date.substring(0, 4)})\n⭐ Rating: ${movie.vote_average}`
       )
       .join("\n\n");
 
-    ctx.reply(`🔥 Trending Movies Today:\n\n${recommendations}`);
+    ctx.replyWithMarkdown(`🔥 *Trending Movies Today:*\n\n${recommendations}`);
   } catch (error) {
     console.error("Error fetching trending movies:", error.message);
     ctx.reply("❌ An error occurred while fetching trending movies.");
@@ -131,8 +136,8 @@ bot.command("info", async (ctx) => {
       return ctx.reply("⚠️ No movie found with that name.");
     }
 
-    ctx.reply(
-      `🎬 ${movie.Title}\n` +
+    ctx.replyWithMarkdown(
+      `🎬 *${movie.Title}*\n` +
         `⭐ Rating: ${movie.imdbRating}\n` +
         `📅 Year: ${movie.Year}\n` +
         `📝 Genre: ${movie.Genre}\n` +
@@ -144,39 +149,78 @@ bot.command("info", async (ctx) => {
   }
 });
 
-// Command: /direct
-bot.command("direct", async (ctx) => {
-  const fileId = ctx.message.text.split(" ").slice(1).join(" ");
-  if (!fileId) {
-    return ctx.reply("⚠️ Please provide a file ID! Example: `/direct abc123`");
-  }
-
-  const directUrl = `https://pixeldrain.com/api/file/${fileId}?download`;
-  ctx.reply(`🔗 Direct Download Link: ${directUrl}`);
-});
-
 // Command: /language
 bot.command("language", (ctx) => {
-  ctx.reply("Language settings are not yet implemented. Stay tuned for updates!");
+  const userId = ctx.from.id;
+
+  if (userLanguages[userId]) {
+    ctx.reply(
+      `🌐 Your current language preference is: ${userLanguages[userId]}\n\n` +
+        "To change it, reply with one of the following:\n" +
+        "- `English`\n" +
+        "- `French`\n" +
+        "- `Spanish`\n" +
+        "- `German`\n" +
+        "- `Hindi`"
+    );
+  } else {
+    ctx.reply(
+      "🌐 You have not set a language preference yet.\n\nReply with one of the following to select your language:\n" +
+        "- `English`\n" +
+        "- `French`\n" +
+        "- `Spanish`\n" +
+        "- `German`\n" +
+        "- `Hindi`"
+    );
+  }
+});
+
+// Handle language preference replies
+bot.on("text", (ctx) => {
+  const userId = ctx.from.id;
+  const text = ctx.message.text.toLowerCase();
+
+  const languages = {
+    english: "English",
+    french: "French",
+    spanish: "Spanish",
+    german: "German",
+    hindi: "Hindi",
+  };
+
+  if (languages[text]) {
+    userLanguages[userId] = languages[text];
+    ctx.reply(`✅ Your language preference has been set to: ${languages[text]}`);
+  }
 });
 
 // Command: /feedback
 bot.command("feedback", (ctx) => {
-  const buttons = [
-    Markup.button.callback("👍 Good", "feedback_good"),
-    Markup.button.callback("👎 Bad", "feedback_bad"),
-    Markup.button.callback("💬 Suggestion", "feedback_suggestion"),
-  ];
-
-  ctx.reply("We'd love your feedback! Choose an option below:", {
-    reply_markup: Markup.inlineKeyboard(buttons),
-  });
+  ctx.reply(
+    "We'd love your feedback! Please reply with one of the following:\n" +
+      "- `Good` - If you like the bot\n" +
+      "- `Bad` - If you dislike the bot\n" +
+      "- `Suggestion <your_message>` - To share suggestions"
+  );
 });
 
-// Handle feedback actions
-bot.action("feedback_good", (ctx) => ctx.reply("Thank you for your feedback! 😊"));
-bot.action("feedback_bad", (ctx) => ctx.reply("We're sorry to hear that. How can we improve?"));
-bot.action("feedback_suggestion", (ctx) => ctx.reply("Please send us your suggestions!"));
+// Handle feedback replies
+bot.on("text", (ctx) => {
+  const message = ctx.message.text.toLowerCase();
+
+  if (message === "good") {
+    ctx.reply("Thank you for your positive feedback! 😊");
+  } else if (message === "bad") {
+    ctx.reply("We're sorry to hear that. Could you share how we can improve?");
+  } else if (message.startsWith("suggestion")) {
+    const suggestion = ctx.message.text.split(" ").slice(1).join(" ");
+    if (suggestion) {
+      ctx.reply("Thank you for your suggestion! We'll consider it. 🙏");
+    } else {
+      ctx.reply("⚠️ Please provide your suggestion. Example: `Suggestion Add more features`");
+    }
+  }
+});
 
 // Webhook configuration for Render deployment
 if (process.env.RENDER_EXTERNAL_URL) {
@@ -189,4 +233,4 @@ if (process.env.RENDER_EXTERNAL_URL) {
 
 // Graceful shutdown
 process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
+process.once("SIGTERM", () => bot.stop("SIGTERM"))
