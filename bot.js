@@ -21,7 +21,7 @@ bot.start((ctx) => {
 
 // Command: /owner
 bot.command("owner", (ctx) => {
-  ctx.reply("🤖 Bot Owner:\nDavid Cyril\n📞 WhatsApp: +1234567890");
+  ctx.reply("🤖 Bot Owner:\nAI OF LAUTECH\n📞 WhatsApp: +2348089336992");
 });
 
 // Command: /download
