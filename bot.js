@@ -5,7 +5,7 @@ const axios = require("axios");
 // Initialize the bot
 const bot = new Telegraf(process.env.BOT_TOKEN); // Telegram bot token
 
-//integrate your API 
+// Integrate your API 
 const tmdbApiKey = process.env.TMDB_API_KEY;    // TMDB API key
 const omdbApiKey = process.env.OMDB_API_KEY;    // OMDB API key
 
