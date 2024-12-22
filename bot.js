@@ -8,18 +8,20 @@ const bot = new Telegraf(process.env.BOT_TOKEN); // Initialize bot
 bot.start((ctx) => {
   ctx.reply(
     "👋 Welcome to CineMindBot!\n\nHere are the available commands:\n" +
-    "🎥 `/download <movie_name>` - Search and download movies\n" +
-    "📜 `/subtitle <movie_name>` - Download subtitles for movies\n" +
-    "🔥 `/recommend` - Get trending movie recommendations\n" +
-    "🎬 `/info <movie_name>` - Get detailed movie information\n" +
-    "📝 `/feedback` - Provide feedback or suggestions\n" +
-    "🙋 `/owner` - Get bot owner's contact info"
+      "🎥 `/download <movie_name>` - Search and download movies\n" +
+      "📜 `/subtitle <movie_name>` - Download subtitles for movies\n" +
+      "🔥 `/recommend` - Get trending movie recommendations\n" +
+      "🎬 `/info <movie_name>` - Get detailed movie information\n" +
+      "🔗 `/direct <file_id>` - Get a direct download link for a file\n" +
+      "🗣️ `/language` - View or change language preferences\n" +
+      "📝 `/feedback` - Provide feedback or suggestions\n" +
+      "🙋 `/owner` - Get bot owner's contact info"
   );
 });
 
 // Command: /owner
 bot.command("owner", (ctx) => {
-  ctx.reply("🤖 Bot Owner:\n*David Cyril*\n📞 WhatsApp: +1234567890", { parse_mode: "Markdown" });
+  ctx.reply("🤖 Bot Owner:\nDavid Cyril\n📞 WhatsApp: +1234567890");
 });
 
 // Command: /download
@@ -40,14 +42,15 @@ bot.command("download", async (ctx) => {
       return ctx.reply(`⚠️ No results found for "${movieName}".`);
     }
 
-    const movieList = movies.slice(0, 10).map((movie, index) => (
-      `${index + 1}. *${movie.title}*\n🔗 [Download Link](${movie.link})`
-    )).join("\n\n");
+    const movieList = movies
+      .slice(0, 10)
+      .map((movie, index) => `${index + 1}. ${movie.title}\n🔗 ${movie.link}`)
+      .join("\n\n");
 
-    ctx.replyWithMarkdown(`🎥 *Search Results for "${movieName}":*\n\n${movieList}`);
+    ctx.reply(`🎥 Search Results for "${movieName}":\n\n${movieList}`);
   } catch (error) {
     console.error("Error during movie search:", error.message);
-    ctx.reply("❌ An error occurred while searching for the movie. Please try again later.");
+    ctx.reply("❌ An error occurred while searching for the movie. Please try again.");
   }
 });
 
@@ -71,14 +74,18 @@ bot.command("subtitle", async (ctx) => {
       return ctx.reply(`⚠️ No subtitles found for "${movieName}".`);
     }
 
-    const subtitleList = subtitles.slice(0, 10).map((subtitle, index) => (
-      `${index + 1}. *${subtitle.attributes.language}*\n🔗 [Download Link](${subtitle.attributes.url})`
-    )).join("\n\n");
+    const subtitleList = subtitles
+      .slice(0, 10)
+      .map(
+        (subtitle, index) =>
+          `${index + 1}. Language: ${subtitle.attributes.language}\n🔗 ${subtitle.attributes.url}`
+      )
+      .join("\n\n");
 
-    ctx.replyWithMarkdown(`📜 *Subtitle Results for "${movieName}":*\n\n${subtitleList}`);
+    ctx.reply(`📜 Subtitles for "${movieName}":\n\n${subtitleList}`);
   } catch (error) {
     console.error("Error during subtitle search:", error.message);
-    ctx.reply("❌ An error occurred while searching for subtitles. Please try again later.");
+    ctx.reply("❌ An error occurred while searching for subtitles.");
   }
 });
 
@@ -93,11 +100,15 @@ bot.command("recommend", async (ctx) => {
       return ctx.reply("⚠️ No trending movies found.");
     }
 
-    const recommendations = trendingMovies.slice(0, 5).map((movie, index) => (
-      `${index + 1}. *${movie.title}* (${movie.release_date.substring(0, 4)})\n⭐ Rating: ${movie.vote_average}`
-    )).join("\n\n");
+    const recommendations = trendingMovies
+      .slice(0, 5)
+      .map(
+        (movie, index) =>
+          `${index + 1}. ${movie.title} (${movie.release_date.split("-")[0]})\n⭐ Rating: ${movie.vote_average}`
+      )
+      .join("\n\n");
 
-    ctx.replyWithMarkdown(`🔥 *Trending Movies Today:*\n\n${recommendations}`);
+    ctx.reply(`🔥 Trending Movies Today:\n\n${recommendations}`);
   } catch (error) {
     console.error("Error fetching trending movies:", error.message);
     ctx.reply("❌ An error occurred while fetching trending movies.");
@@ -120,17 +131,33 @@ bot.command("info", async (ctx) => {
       return ctx.reply("⚠️ No movie found with that name.");
     }
 
-    ctx.replyWithMarkdown(
-      `🎬 *${movie.Title}*\n` +
-      `⭐ Rating: ${movie.imdbRating}\n` +
-      `📅 Year: ${movie.Year}\n` +
-      `📝 Genre: ${movie.Genre}\n` +
-      `📖 Plot: ${movie.Plot}`
+    ctx.reply(
+      `🎬 ${movie.Title}\n` +
+        `⭐ Rating: ${movie.imdbRating}\n` +
+        `📅 Year: ${movie.Year}\n` +
+        `📝 Genre: ${movie.Genre}\n` +
+        `📖 Plot: ${movie.Plot}`
     );
   } catch (error) {
     console.error("Error fetching movie info:", error.message);
     ctx.reply("❌ An error occurred while fetching movie info.");
   }
+});
+
+// Command: /direct
+bot.command("direct", async (ctx) => {
+  const fileId = ctx.message.text.split(" ").slice(1).join(" ");
+  if (!fileId) {
+    return ctx.reply("⚠️ Please provide a file ID! Example: `/direct abc123`");
+  }
+
+  const directUrl = `https://pixeldrain.com/api/file/${fileId}?download`;
+  ctx.reply(`🔗 Direct Download Link: ${directUrl}`);
+});
+
+// Command: /language
+bot.command("language", (ctx) => {
+  ctx.reply("Language settings are not yet implemented. Stay tuned for updates!");
 });
 
 // Command: /feedback
