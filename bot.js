@@ -1,15 +1,18 @@
-const { Telegraf } = require("telegraf");
+require("dotenv").config(); // Load environment variables
+const { Telegraf, Markup } = require("telegraf");
 const axios = require("axios");
 
-// Load the bot token from environment variables
-const bot = new Telegraf(process.env.BOT_TOKEN);
+const bot = new Telegraf(process.env.BOT_TOKEN); // Initialize bot
 
 // Command: /start
 bot.start((ctx) => {
   ctx.reply(
-    "👋 Welcome to CineMindBot!\n\nUse the following commands:\n" +
+    "👋 Welcome to CineMindBot!\n\nHere are the available commands:\n" +
     "🎥 `/download <movie_name>` - Search and download movies\n" +
     "📜 `/subtitle <movie_name>` - Download subtitles for movies\n" +
+    "🔥 `/recommend` - Get trending movie recommendations\n" +
+    "🎬 `/info <movie_name>` - Get detailed movie information\n" +
+    "📝 `/feedback` - Provide feedback or suggestions\n" +
     "🙋 `/owner` - Get bot owner's contact info"
   );
 });
@@ -29,7 +32,6 @@ bot.command("download", async (ctx) => {
   try {
     ctx.reply(`🔍 Searching for "${movieName}"...`);
 
-    // Fetch movie search results
     const searchUrl = `https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(movieName)}`;
     const response = await axios.get(searchUrl);
     const movies = response.data.result || [];
@@ -38,13 +40,11 @@ bot.command("download", async (ctx) => {
       return ctx.reply(`⚠️ No results found for "${movieName}".`);
     }
 
-    // Display results as direct links
-    let movieList = `🎥 *Search Results for "${movieName}":*\n\n`;
-    movies.slice(0, 10).forEach((movie, index) => {
-      movieList += `${index + 1}. *${movie.title}*\n🔗 [Download Link](${movie.link})\n\n`;
-    });
+    const movieList = movies.slice(0, 10).map((movie, index) => (
+      `${index + 1}. *${movie.title}*\n🔗 [Download Link](${movie.link})`
+    )).join("\n\n");
 
-    ctx.replyWithMarkdown(movieList);
+    ctx.replyWithMarkdown(`🎥 *Search Results for "${movieName}":*\n\n${movieList}`);
   } catch (error) {
     console.error("Error during movie search:", error.message);
     ctx.reply("❌ An error occurred while searching for the movie. Please try again later.");
@@ -61,7 +61,6 @@ bot.command("subtitle", async (ctx) => {
   try {
     ctx.reply(`🔍 Searching subtitles for "${movieName}"...`);
 
-    // Fetch subtitles using OpenSubtitles API
     const searchUrl = `https://api.opensubtitles.com/api/v1/subtitles?query=${encodeURIComponent(movieName)}`;
     const response = await axios.get(searchUrl, {
       headers: { "Api-Key": process.env.OPENSUBTITLES_API_KEY },
@@ -72,32 +71,93 @@ bot.command("subtitle", async (ctx) => {
       return ctx.reply(`⚠️ No subtitles found for "${movieName}".`);
     }
 
-    // Display subtitle links
-    let subtitleList = `📜 *Subtitle Results for "${movieName}":*\n\n`;
-    subtitles.slice(0, 10).forEach((subtitle, index) => {
-      subtitleList += `${index + 1}. *${subtitle.attributes.language}*\n🔗 [Download Link](${subtitle.attributes.url})\n\n`;
-    });
+    const subtitleList = subtitles.slice(0, 10).map((subtitle, index) => (
+      `${index + 1}. *${subtitle.attributes.language}*\n🔗 [Download Link](${subtitle.attributes.url})`
+    )).join("\n\n");
 
-    ctx.replyWithMarkdown(subtitleList);
+    ctx.replyWithMarkdown(`📜 *Subtitle Results for "${movieName}":*\n\n${subtitleList}`);
   } catch (error) {
     console.error("Error during subtitle search:", error.message);
     ctx.reply("❌ An error occurred while searching for subtitles. Please try again later.");
   }
 });
 
-// Configure webhook for Render
-if (process.env.RENDER_EXTERNAL_URL) {
-  const webhookUrl = `${process.env.RENDER_EXTERNAL_URL}/webhook`;
-  bot.telegram.setWebhook(webhookUrl).then(() => {
-    console.log(`🤖 Webhook set to: ${webhookUrl}`);
-  });
+// Command: /recommend
+bot.command("recommend", async (ctx) => {
+  try {
+    const url = `https://api.themoviedb.org/3/trending/movie/day?api_key=${process.env.TMDB_API_KEY}`;
+    const response = await axios.get(url);
+    const trendingMovies = response.data.results || [];
 
-  bot.startWebhook("/webhook", null, process.env.PORT || 3000);
-} else {
-  // Fallback to long polling if webhook URL isn't set
-  bot.launch().then(() => {
-    console.log("🤖 CineMindBot is running with long polling!");
+    if (trendingMovies.length === 0) {
+      return ctx.reply("⚠️ No trending movies found.");
+    }
+
+    const recommendations = trendingMovies.slice(0, 5).map((movie, index) => (
+      `${index + 1}. *${movie.title}* (${movie.release_date.substring(0, 4)})\n⭐ Rating: ${movie.vote_average}`
+    )).join("\n\n");
+
+    ctx.replyWithMarkdown(`🔥 *Trending Movies Today:*\n\n${recommendations}`);
+  } catch (error) {
+    console.error("Error fetching trending movies:", error.message);
+    ctx.reply("❌ An error occurred while fetching trending movies.");
+  }
+});
+
+// Command: /info
+bot.command("info", async (ctx) => {
+  const movieName = ctx.message.text.split(" ").slice(1).join(" ");
+  if (!movieName) {
+    return ctx.reply("⚠️ Please provide a movie name! Example: `/info Deadpool`");
+  }
+
+  try {
+    const url = `http://www.omdbapi.com/?t=${encodeURIComponent(movieName)}&apikey=${process.env.OMDB_API_KEY}`;
+    const response = await axios.get(url);
+    const movie = response.data;
+
+    if (movie.Response === "False") {
+      return ctx.reply("⚠️ No movie found with that name.");
+    }
+
+    ctx.replyWithMarkdown(
+      `🎬 *${movie.Title}*\n` +
+      `⭐ Rating: ${movie.imdbRating}\n` +
+      `📅 Year: ${movie.Year}\n` +
+      `📝 Genre: ${movie.Genre}\n` +
+      `📖 Plot: ${movie.Plot}`
+    );
+  } catch (error) {
+    console.error("Error fetching movie info:", error.message);
+    ctx.reply("❌ An error occurred while fetching movie info.");
+  }
+});
+
+// Command: /feedback
+bot.command("feedback", (ctx) => {
+  const buttons = [
+    Markup.button.callback("👍 Good", "feedback_good"),
+    Markup.button.callback("👎 Bad", "feedback_bad"),
+    Markup.button.callback("💬 Suggestion", "feedback_suggestion"),
+  ];
+
+  ctx.reply("We'd love your feedback! Choose an option below:", {
+    reply_markup: Markup.inlineKeyboard(buttons),
   });
+});
+
+// Handle feedback actions
+bot.action("feedback_good", (ctx) => ctx.reply("Thank you for your feedback! 😊"));
+bot.action("feedback_bad", (ctx) => ctx.reply("We're sorry to hear that. How can we improve?"));
+bot.action("feedback_suggestion", (ctx) => ctx.reply("Please send us your suggestions!"));
+
+// Webhook configuration for Render deployment
+if (process.env.RENDER_EXTERNAL_URL) {
+  bot.telegram.setWebhook(`${process.env.RENDER_EXTERNAL_URL}/webhook`);
+  bot.startWebhook("/webhook", null, process.env.PORT || 3000);
+  console.log("🤖 CineMindBot running with webhook!");
+} else {
+  bot.launch().then(() => console.log("🤖 CineMindBot running with long polling!"));
 }
 
 // Graceful shutdown
