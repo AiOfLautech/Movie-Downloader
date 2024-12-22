@@ -5,7 +5,7 @@
 node_modules/
 
 # Logs
-.log
+*.log
 
 # npm package lock
 package-lock.json
