@@ -231,7 +231,7 @@ bot.command("download", async (ctx) => {
         const selectedMovie = movies[index];
         actionCtx.reply(`🎥 You selected: *${selectedMovie.title}*`, { parse_mode: "Markdown" });
 
-        // Fetch download links
+       // Fetch download links
         const downloadUrl = `https://api-site-2.vercel.app/api/sinhalasub/movie?url=${encodeURIComponent(
           selectedMovie.link
         )}`;
