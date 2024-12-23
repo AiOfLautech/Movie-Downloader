@@ -1,6 +1,7 @@
 require("dotenv").config(); // Load environment variables
 const { Telegraf } = require("telegraf");
 const axios = require("axios");
+const { text2im } = require('dalle');  // Assuming you're using DALL·E for image generation
 
 const bot = new Telegraf(process.env.BOT_TOKEN); // Initialize bot
 
@@ -17,13 +18,33 @@ bot.start((ctx) => {
       "🎬 `/info <movie_name>` - Get detailed movie information\n" +
       "🌐 `/language` - View or change language preferences\n" +
       "📝 `/feedback` - Provide feedback or suggestions\n" +
-      "🙋 `/owner` - Get bot owner's contact info"
+      "🙋 `/owner` - Get bot owner's contact info\n" +
+      "💸 `/donate` - Donate to support the bot"
   );
 });
 
 // Command: /owner
 bot.command("owner", (ctx) => {
-  ctx.reply("🤖 Bot Owner:\nAI OF LAUTECH\n📞 WhatsApp: +2348089336992");
+  ctx.reply("🤖 Bot Owner:\nAI Of Lautech\n📞 WhatsApp: +2348089336992");
+});
+
+// Command: /donate
+bot.command("donate", async (ctx) => {
+  const donationText = "Bank Name: Moniepoint\nAccount Number: 8089336992\nAccount Name: Babalola Hephzibah Samuel";
+  
+  try {
+    // Generate an image with the donation text
+    const image = await text2im({
+      prompt: donationText,
+      size: "1024x1024"
+    });
+    
+    // Send the image to the user
+    ctx.replyWithPhoto({ url: image });
+  } catch (error) {
+    console.error("Error generating donation image:", error.message);
+    ctx.reply("❌ An error occurred while generating the donation image.");
+  }
 });
 
 // Command: /download
@@ -44,47 +65,53 @@ bot.command("download", async (ctx) => {
       return ctx.reply(`⚠️ No results found for "${movieName}".`);
     }
 
-    let movieList = `🎥 *Search Results for* "${movieName}":\n\n`;
-    movies.forEach((movie, index) => {
-      movieList += `*${index + 1}.* ${movie.title}\n🔗 Link: ${movie.link}\n\n`;
-    });
+    const movieList = movies
+      .slice(0, 10)
+      .map(
+        (movie, index) =>
+          `${index + 1}. ${movie.title}\n🔗 Direct Download: https://pixeldrain.com/api/file/${movie.link}?download`
+      )
+      .join("\n\n");
 
-    ctx.reply(movieList);
-
-    // After sending the movie list, prompt the user to select a movie by number
-    ctx.reply("Please reply with the number of the movie you want to download.");
-
-    bot.on("text", async (messageCtx) => {
-      const selectedMovieIndex = parseInt(messageCtx.message.text.trim());
-      if (isNaN(selectedMovieIndex) || selectedMovieIndex < 1 || selectedMovieIndex > movies.length) {
-        return messageCtx.reply("⚠️ Invalid selection. Please reply with a valid movie number.");
-      }
-
-      const selectedMovie = movies[selectedMovieIndex - 1];
-      const apiUrl = `https://api-site-2.vercel.app/api/sinhalasub/movie?url=${encodeURIComponent(selectedMovie.link)}`;
-
-      try {
-        const { data } = await axios.get(apiUrl);
-        const downloadLinks = data.result.dl_links || [];
-
-        if (downloadLinks.length === 0) {
-          return messageCtx.reply("⚠️ No PixelDrain links found.");
-        }
-
-        let qualityList = `🎥 *${data.result.title}* - Available PixelDrain Download Links:\n`;
-        downloadLinks.forEach((link, index) => {
-          qualityList += `*${index + 1}.* ${link.quality} - ${link.size}\n🔗 Link: ${link.link}\n\n`;
-        });
-
-        messageCtx.reply(qualityList);
-      } catch (error) {
-        console.error("Error fetching download links:", error.message);
-        messageCtx.reply("❌ An error occurred while fetching download links.");
-      }
-    });
+    ctx.reply(`🎥 Search Results for "${movieName}":\n\n${movieList}`);
   } catch (error) {
     console.error("Error during movie search:", error.message);
     ctx.reply("❌ An error occurred while searching for the movie. Please try again.");
+  }
+});
+
+// Command: /subtitle
+bot.command("subtitle", async (ctx) => {
+  const movieName = ctx.message.text.split(" ").slice(1).join(" ");
+  if (!movieName) {
+    return ctx.reply("⚠️ Please provide a movie name! Example: `/subtitle Deadpool`");
+  }
+
+  try {
+    ctx.reply(`🔍 Searching subtitles for "${movieName}"...`);
+
+    const searchUrl = `https://api.opensubtitles.com/api/v1/subtitles?query=${encodeURIComponent(movieName)}`;
+    const response = await axios.get(searchUrl, {
+      headers: { "Api-Key": process.env.OPENSUBTITLES_API_KEY },
+    });
+    const subtitles = response.data.data || [];
+
+    if (subtitles.length === 0) {
+      return ctx.reply(`⚠️ No subtitles found for "${movieName}".`);
+    }
+
+    const subtitleList = subtitles
+      .slice(0, 10)
+      .map(
+        (subtitle, index) =>
+          `${index + 1}. *${subtitle.attributes.language}*\n🔗 [Download Link](${subtitle.attributes.url})`
+      )
+      .join("\n\n");
+
+    ctx.replyWithMarkdown(`📜 *Subtitle Results for "${movieName}":*\n\n${subtitleList}`);
+  } catch (error) {
+    console.error("Error during subtitle search:", error.message);
+    ctx.reply("❌ An error occurred while searching for subtitles. Please try again.");
   }
 });
 
@@ -99,15 +126,47 @@ bot.command("recommend", async (ctx) => {
       return ctx.reply("⚠️ No trending movies found.");
     }
 
-    let trendingList = "🔥 *Trending Movies Today:*\n\n";
-    trendingMovies.forEach((movie, index) => {
-      trendingList += `*${index + 1}.* ${movie.title} (${movie.release_date.substring(0, 4)})\n⭐ Rating: ${movie.vote_average}\n\n`;
-    });
+    const recommendations = trendingMovies
+      .slice(0, 5)
+      .map(
+        (movie, index) =>
+          `${index + 1}. *${movie.title}* (${movie.release_date.substring(0, 4)})\n⭐ Rating: ${movie.vote_average}`
+      )
+      .join("\n\n");
 
-    ctx.reply(trendingList);
+    ctx.replyWithMarkdown(`🔥 *Trending Movies Today:*\n\n${recommendations}`);
   } catch (error) {
     console.error("Error fetching trending movies:", error.message);
     ctx.reply("❌ An error occurred while fetching trending movies.");
+  }
+});
+
+// Command: /info
+bot.command("info", async (ctx) => {
+  const movieName = ctx.message.text.split(" ").slice(1).join(" ");
+  if (!movieName) {
+    return ctx.reply("⚠️ Please provide a movie name! Example: `/info Deadpool`");
+  }
+
+  try {
+    const url = `http://www.omdbapi.com/?t=${encodeURIComponent(movieName)}&apikey=${process.env.OMDB_API_KEY}`;
+    const response = await axios.get(url);
+    const movie = response.data;
+
+    if (movie.Response === "False") {
+      return ctx.reply("⚠️ No movie found with that name.");
+    }
+
+    ctx.replyWithMarkdown(
+      `🎬 *${movie.Title}*\n` +
+        `⭐ Rating: ${movie.imdbRating}\n` +
+        `📅 Year: ${movie.Year}\n` +
+        `📝 Genre: ${movie.Genre}\n` +
+        `📖 Plot: ${movie.Plot}`
+    );
+  } catch (error) {
+    console.error("Error fetching movie info:", error.message);
+    ctx.reply("❌ An error occurred while fetching movie info.");
   }
 });
 
