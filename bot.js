@@ -195,7 +195,6 @@ bot.command("info", async (ctx) => {
     ctx.reply("❌ An error occurred while fetching movie info.");
   }
 });
-        
 
 // Command: /download
 bot.command("download", async (ctx) => {
