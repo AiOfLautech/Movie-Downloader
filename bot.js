@@ -1,7 +1,7 @@
 require("dotenv").config(); // Load environment variables
 const { Telegraf } = require("telegraf");
 const axios = require("axios");
-const { text2im } = require('dalle');  // Assuming you're using DALL·E for image generation
+const { createCanvas } = require('canvas');  // For generating the donation image
 
 const bot = new Telegraf(process.env.BOT_TOKEN); // Initialize bot
 
@@ -19,33 +19,13 @@ bot.start((ctx) => {
       "🌐 `/language` - View or change language preferences\n" +
       "📝 `/feedback` - Provide feedback or suggestions\n" +
       "🙋 `/owner` - Get bot owner's contact info\n" +
-      "💸 `/donate` - Donate to support the bot"
+      "💳 `/donate` - Get donation details"
   );
 });
 
 // Command: /owner
 bot.command("owner", (ctx) => {
   ctx.reply("🤖 Bot Owner:\nAI Of Lautech\n📞 WhatsApp: +2348089336992");
-});
-
-// Command: /donate
-bot.command("donate", async (ctx) => {
-  const donationText = "Bank Name: Moniepoint\nAccount Number: 8089336992\nAccount Name: Babalola Hephzibah Samuel";
-  
-  try {
-    // Generate an image with the donation text
-    const image = await text2im({
-      prompt: donationText,
-      size: "1024x1024"
-    });
-    
-    // Send the image to the user
-    ctx.replyWithPhoto({ url: image });
-  } catch (error) {
-    console.error("Error generating donation image:", error.message);
-    // Fallback: Send the donation details as plain text
-    ctx.reply(`❌ An error occurred while generating the donation image.\n\nDonation details:\n${donationText}`);
-  }
 });
 
 // Command: /download
@@ -70,7 +50,7 @@ bot.command("download", async (ctx) => {
       .slice(0, 10)
       .map(
         (movie, index) =>
-          `${index + 1}. ${movie.title}\n🔗 Direct Download: https://pixeldrain.com/api/file/${movie.link}?download`
+          `${index + 1}. ${movie.title}\n🔗 Movie Link: ${movie.link}\n🔗 Download Link: https://pixeldrain.com/api/file/${movie.link}?download`
       )
       .join("\n\n");
 
@@ -237,13 +217,22 @@ bot.on("text", (ctx) => {
   } else if (message.startsWith("suggestion")) {
     const suggestion = ctx.message.text.split(" ").slice(1).join(" ");
     if (suggestion) {
-      // Send feedback to owner (direct message)
-      ctx.telegram.sendMessage(process.env.OWNER_CHAT_ID, `New suggestion: ${suggestion}`);
       ctx.reply("Thank you for your suggestion! We'll consider it. 🙏");
     } else {
       ctx.reply("⚠️ Please provide your suggestion. Example: `Suggestion Add more features`");
     }
   }
+});
+
+// Command: /donate
+bot.command("donate", (ctx) => {
+  ctx.reply(
+    "💳 If you'd like to donate, here are the details:\n" +
+    "Bank Name: Moniepoint\n" +
+    "Account Number: 8089336992\n" +
+    "Account Name: Babalola Hephzibah Samuel\n\n" +
+    "Thank you for your support! 🙏"
+  );
 });
 
 // Webhook configuration for Render deployment
