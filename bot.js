@@ -17,14 +17,8 @@ bot.start((ctx) => {
       "🎬 `/info <movie_name>` - Get detailed movie information\n" +
       "🌐 `/language` - View or change language preferences\n" +
       "📝 `/feedback` - Provide feedback or suggestions\n" +
-      "🙋 `/owner` - Get bot owner's contact info\n" +
-      "🙏 `/donate` -                            ”
+      "🙋 `/owner` - Get bot owner's contact info"
   );
-});
-
-//comand: /donate
-bot.command("donate", (ctx) => {
-  ctx.reply("🏦 Bank Name: Moniepoint\nAccount Name: Babalola Hephzibah Samuel\nAccount Number:8089336992");
 });
 
 // Command: /owner
