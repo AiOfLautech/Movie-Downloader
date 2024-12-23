@@ -4,9 +4,6 @@ const axios = require("axios");
 
 const bot = new Telegraf(process.env.BOT_TOKEN); // Initialize bot
 
-// Your Telegram ID for feedback suggestions
-const OWNER_ID = process.env.OWNER_ID; // Add your Telegram ID in the environment variables
-
 // Temporary storage for user preferences (e.g., language)
 const userLanguages = {};
 
@@ -26,83 +23,39 @@ bot.start((ctx) => {
 
 // Command: /owner
 bot.command("owner", (ctx) => {
-  ctx.reply("🤖 Bot Owner:\nAI OF LAUTECH\n📞 WhatsApp: +2348089336992");
+  ctx.reply("🤖 Bot Owner:\nAI of Lautech\n📞 WhatsApp: +2348089336992");
 });
 
-// Command: /language
-bot.command("language", (ctx) => {
-  const userId = ctx.from.id;
-
-  if (userLanguages[userId]) {
-    ctx.reply(
-      `🌐 Your current language preference is: ${userLanguages[userId]}\n\n` +
-        "To change it, reply with one of the following:\n" +
-        "- `English`\n" +
-        "- `French`\n" +
-        "- `Spanish`\n" +
-        "- `German`\n" +
-        "- `Hindi`"
-    );
-  } else {
-    ctx.reply(
-      "🌐 You have not set a language preference yet.\n\nReply with one of the following to select your language:\n" +
-        "- `English`\n" +
-        "- `French`\n" +
-        "- `Spanish`\n" +
-        "- `German`\n" +
-        "- `Hindi`"
-    );
+// Command: /download
+bot.command("download", async (ctx) => {
+  const movieName = ctx.message.text.split(" ").slice(1).join(" ");
+  if (!movieName) {
+    return ctx.reply("⚠️ Please provide a movie name! Example: `/download Deadpool`");
   }
-});
 
-// Handle language preference replies
-bot.on("text", (ctx) => {
-  const userId = ctx.from.id;
-  const text = ctx.message.text.toLowerCase();
+  try {
+    ctx.reply(`🔍 Searching for "${movieName}"...`);
 
-  const languages = {
-    english: "English",
-    french: "French",
-    spanish: "Spanish",
-    german: "German",
-    hindi: "Hindi",
-  };
+    const searchUrl = `https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(movieName)}`;
+    const response = await axios.get(searchUrl);
+    const movies = response.data.result || [];
 
-  if (languages[text]) {
-    userLanguages[userId] = languages[text];
-    ctx.reply(`✅ Your language preference has been set to: ${languages[text]}`);
-  }
-});
-
-// Command: /feedback
-bot.command("feedback", (ctx) => {
-  ctx.reply(
-    "We'd love your feedback! Please reply with one of the following:\n" +
-      "- `Good` - If you like the bot\n" +
-      "- `Bad` - If you dislike the bot\n" +
-      "- `Suggestion <your_message>` - To share suggestions"
-  );
-});
-
-// Handle feedback replies
-bot.on("text", async (ctx) => {
-  const message = ctx.message.text.toLowerCase();
-
-  if (message === "good") {
-    ctx.reply("Thank you for your positive feedback! 😊");
-  } else if (message === "bad") {
-    ctx.reply("We're sorry to hear that. Could you share how we can improve?");
-  } else if (message.startsWith("suggestion")) {
-    const suggestion = ctx.message.text.split(" ").slice(1).join(" ");
-    if (suggestion) {
-      await bot.telegram.sendMessage(
-        OWNER_ID,
-        `📝 New Suggestion from @${ctx.from.username || ctx.from.first_name}:\n\n${suggestion}`
-      );
-      ctx.reply("Thank you for your suggestion! We'll consider it. 🙏");
-    } else {
-      ctx.reply("⚠️ Please provide your suggestion. Example: `Suggestion Add more features`");
+    if (movies.length === 0) {
+      return ctx.reply(`⚠️ No results found for "${movieName}".`);
     }
+
+    const movieList = movies
+      .slice(0, 10)
+      .map(
+        (movie, index) =>
+          `${index + 1}. ${movie.title}\n🔗 Direct Download: https://pixeldrain.com/api/file/${movie.link}?download`
+      )
+      .join("\n\n");
+
+    ctx.reply(`🎥 Search Results for "${movieName}":\n\n${movieList}`);
+  } catch (error) {
+    console.error("Error during movie search:", error.message);
+    ctx.reply("❌ An error occurred while searching for the movie. Please try again.");
   }
 });
 
@@ -196,66 +149,76 @@ bot.command("info", async (ctx) => {
   }
 });
 
-// Command: /download
-bot.command("download", async (ctx) => {
-  const movieName = ctx.message.text.split(" ").slice(1).join(" ");
-  if (!movieName) {
-    return ctx.reply("⚠️ Please provide a movie name! Example: `/download Deadpool`");
+// Command: /language
+bot.command("language", (ctx) => {
+  const userId = ctx.from.id;
+
+  if (userLanguages[userId]) {
+    ctx.reply(
+      `🌐 Your current language preference is: ${userLanguages[userId]}\n\n` +
+        "To change it, reply with one of the following:\n" +
+        "- `English`\n" +
+        "- `French`\n" +
+        "- `Spanish`\n" +
+        "- `German`\n" +
+        "- `Hindi`"
+    );
+  } else {
+    ctx.reply(
+      "🌐 You have not set a language preference yet.\n\nReply with one of the following to select your language:\n" +
+        "- `English`\n" +
+        "- `French`\n" +
+        "- `Spanish`\n" +
+        "- `German`\n" +
+        "- `Hindi`"
+    );
   }
+});
 
-  try {
-    ctx.reply(`🔍 Searching for "${movieName}"...`);
+// Handle language preference replies
+bot.on("text", (ctx) => {
+  const userId = ctx.from.id;
+  const text = ctx.message.text.toLowerCase();
 
-    // Search SinhalaSub for movies
-    const searchUrl = `https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(movieName)}`;
-    const response = await axios.get(searchUrl);
-    const movies = response.data.result || [];
+  const languages = {
+    english: "English",
+    french: "French",
+    spanish: "Spanish",
+    german: "German",
+    hindi: "Hindi",
+  };
 
-    if (movies.length === 0) {
-      return ctx.reply(`⚠️ No results found for "${movieName}".`);
+  if (languages[text]) {
+    userLanguages[userId] = languages[text];
+    ctx.reply(`✅ Your language preference has been set to: ${languages[text]}`);
+  }
+});
+
+// Command: /feedback
+bot.command("feedback", (ctx) => {
+  ctx.reply(
+    "We'd love your feedback! Please this command is under maintenance:\n" +
+      "- `Good` - If you like the bot\n" +
+      "- `Bad` - If you dislike the bot\n" +
+      "- `Suggestion <your_message>` - To share suggestions"
+  );
+});
+
+// Handle feedback replies
+bot.on("text", (ctx) => {
+  const message = ctx.message.text.toLowerCase();
+
+  if (message === "good") {
+    ctx.reply("Thank you for your positive feedback! 😊");
+  } else if (message === "bad") {
+    ctx.reply("We're sorry to hear that. Could you share how we can improve?");
+  } else if (message.startsWith("suggestion")) {
+    const suggestion = ctx.message.text.split(" ").slice(1).join(" ");
+    if (suggestion) {
+      ctx.reply("Thank you for your suggestion! We'll consider it. 🙏");
+    } else {
+      ctx.reply("⚠️ Please provide your suggestion. Example: `Suggestion Add more features`");
     }
-
-    // Display search results
-    const movieButtons = movies.slice(0, 10).map((movie, index) => ({
-      text: `${index + 1}. ${movie.title}`,
-      callback_data: `movie_${index}`,
-    }));
-
-    ctx.reply("🎥 Select a movie from the list:", {
-      reply_markup: { inline_keyboard: [movieButtons.map((movie) => [movie])] },
-    });
-
-    // Listen for movie selection
-    movies.forEach((movie, index) => {
-      bot.action(`movie_${index}`, async (actionCtx) => {
-        const selectedMovie = movies[index];
-        actionCtx.reply(`🎥 You selected: *${selectedMovie.title}*`, { parse_mode: "Markdown" });
-
-       // Fetch download links
-        const downloadUrl = `https://api-site-2.vercel.app/api/sinhalasub/movie?url=${encodeURIComponent(
-          selectedMovie.link
-        )}`;
-        const downloadResponse = await axios.get(downloadUrl);
-        const downloadLinks = downloadResponse.data.result.dl_links || [];
-
-        if (downloadLinks.length === 0) {
-          return actionCtx.reply("⚠️ No download links found for this movie.");
-        }
-
-        // Display download links
-        const qualityButtons = downloadLinks.map((link, qIndex) => ({
-          text: `${link.quality} - ${link.size}`,
-          url: `https://pixeldrain.com/api/file/${link.link.split("/").pop()}?download`,
-        }));
-
-        actionCtx.reply("📥 Select a quality to download:", {
-          reply_markup: { inline_keyboard: [qualityButtons.map((quality) => [quality])] },
-        });
-      });
-    });
-  } catch (error) {
-    console.error("Error during /download command:", error.message);
-    ctx.reply("❌ An error occurred while searching for the movie. Please try again later.");
   }
 });
 
