@@ -1,7 +1,7 @@
 require("dotenv").config(); // Load environment variables
 const { Telegraf } = require("telegraf");
 const axios = require("axios");
-const { text2im } = require('dalle');  // Assuming you're using DALL·E for image generation
+const { createCanvas } = require('canvas');  // For generating the donation image
 
 const bot = new Telegraf(process.env.BOT_TOKEN); // Initialize bot
 
@@ -19,32 +19,13 @@ bot.start((ctx) => {
       "🌐 `/language` - View or change language preferences\n" +
       "📝 `/feedback` - Provide feedback or suggestions\n" +
       "🙋 `/owner` - Get bot owner's contact info\n" +
-      "💸 `/donate` - Donate to support the bot"
+      "💳 `/donate` - Get donation details"
   );
 });
 
 // Command: /owner
 bot.command("owner", (ctx) => {
   ctx.reply("🤖 Bot Owner:\nAI Of Lautech\n📞 WhatsApp: +2348089336992");
-});
-
-// Command: /donate
-bot.command("donate", async (ctx) => {
-  const donationText = "Bank Name: Moniepoint\nAccount Number: 8089336992\nAccount Name: Babalola Hephzibah Samuel";
-  
-  try {
-    // Generate an image with the donation text
-    const image = await text2im({
-      prompt: donationText,
-      size: "1024x1024"
-    });
-    
-    // Send the image to the user
-    ctx.replyWithPhoto({ url: image });
-  } catch (error) {
-    console.error("Error generating donation image:", error.message);
-    ctx.reply("❌ An error occurred while generating the donation image.");
-  }
 });
 
 // Command: /download
@@ -240,6 +221,34 @@ bot.on("text", (ctx) => {
     } else {
       ctx.reply("⚠️ Please provide your suggestion. Example: `Suggestion Add more features`");
     }
+  }
+});
+
+// Command: /donate
+bot.command("donate", async (ctx) => {
+  try {
+    const canvas = createCanvas(600, 400);  // Create canvas with width and height
+    const ctxCanvas = canvas.getContext('2d');
+
+    // Set background color and text style
+    ctxCanvas.fillStyle = 'white';
+    ctxCanvas.fillRect(0, 0, canvas.width, canvas.height);
+    ctxCanvas.font = '20px Arial';
+    ctxCanvas.fillStyle = 'black';
+    ctxCanvas.fillText("Bank Name: Moniepoint", 50, 50);
+    ctxCanvas.fillText("Account Number: 8089336992", 50, 100);
+    ctxCanvas.fillText("Account Name: Babalola Hephzibah Samuel", 50, 150);
+
+    // Get the image buffer
+    const imageBuffer = canvas.toBuffer();
+
+    // Send the image buffer as a photo to the user
+    ctx.replyWithPhoto({ source: imageBuffer }, {
+      caption: "Thank you for considering a donation! 🙏"
+    });
+  } catch (error) {
+    console.error("Error generating donation image:", error.message);
+    ctx.reply("❌ An error occurred while generating the donation image. Please try again.");
   }
 });
 
