@@ -10,26 +10,26 @@ const users = new Set();
 
 // Command: /start
 bot.start((ctx) => {
-  // Add user to users set
+  // Add user to the users set
   users.add(ctx.from.id);
 
   ctx.reply(
-    `👋 Welcome to CineMindBot!\n\nAvailable commands:\n` +
-      `🎥 /download <movie_name> - Search and download movies\n` +
-      `📜 /subtitle <movie_name> - Download subtitles\n` +
-      `🔥 /recommend - Get trending movies\n` +
-      `🎬 /info <movie_name> - Get movie details\n` +
-      `🌐 /language - Change language preferences\n` +
-      `🙋 /owner - Contact owner\n` +
-      `💳 /donate - Get donation details\n` +
-      `👤 /users - View users (Owner only)\n` +
-      `📝 /feedback - Send feedback`
+    `Welcome to CineMindBot!\n\nAvailable commands:\n` +
+      `/download <movie_name> - Search and download movies\n` +
+      `/subtitle <movie_name> - Download subtitles\n` +
+      `/recommend - Get trending movies\n` +
+      `/info <movie_name> - Get movie details\n` +
+      `/language - Change language preferences\n` +
+      `/owner - Contact owner\n` +
+      `/donate - Get donation details\n` +
+      `/users - View users (Owner only)\n` +
+      `/feedback - Send feedback`
   );
 });
 
 // Command: /owner
 bot.command('owner', (ctx) => {
-  ctx.reply(`🤖 Owner: AI Of Lautech\n📞 Contact: +2348089336992`);
+  ctx.reply(`Owner: AI Of Lautech\nContact: +2348089336992`);
 });
 
 // Command: /feedback
@@ -42,58 +42,58 @@ bot.on('text', async (ctx) => {
   if (message.startsWith('feedback')) {
     const feedback = ctx.message.text.split(' ').slice(1).join(' ');
     if (!feedback) {
-      return ctx.reply('⚠️ Please provide feedback! Example: "feedback I love this bot!"');
+      return ctx.reply('Please provide feedback! Example: "feedback I love this bot!"');
     }
 
     await bot.telegram.sendMessage(
       process.env.OWNER_ID,
-      `📩 Feedback from ${ctx.from.username || ctx.from.id}:\n\n${feedback}`
+      `Feedback from ${ctx.from.username || ctx.from.id}:\n\n${feedback}`
     );
-    ctx.reply('✅ Thank you for your feedback!');
+    ctx.reply('Thank you for your feedback!');
   }
 });
 
 // Command: /users (Owner only)
 bot.command('users', (ctx) => {
   if (ctx.from.id.toString() !== process.env.OWNER_ID) {
-    return ctx.reply('❌ This command is restricted to the owner.');
+    return ctx.reply('This command is restricted to the owner.');
   }
 
   const userList = Array.from(users)
     .map((userId, index) => `${index + 1}. User ID: ${userId}`)
     .join('\n');
 
-  ctx.reply(`👤 Registered Users:\n\n${userList || 'No users yet.'}`);
+  ctx.reply(`Registered Users:\n\n${userList || 'No users yet.'}`);
 });
 
 // Command: /download
 bot.command('download', async (ctx) => {
   const movieName = ctx.message.text.split(' ').slice(1).join(' ');
   if (!movieName) {
-    return ctx.reply('⚠️ Please provide a movie name! Example: /download Deadpool');
+    return ctx.reply('Please provide a movie name! Example: /download Deadpool');
   }
 
   try {
-    ctx.reply(`🔍 Searching for "${movieName}"...`);
+    ctx.reply(`Searching for "${movieName}"...`);
     const response = await axios.get(`https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(movieName)}`);
     const movies = response.data.result || [];
 
     if (movies.length === 0) {
-      return ctx.reply(`⚠️ No results found for "${movieName}".`);
+      return ctx.reply(`No results found for "${movieName}".`);
     }
 
     const movieList = movies
       .slice(0, 10)
       .map(
         (movie, index) =>
-          `${index + 1}. ${movie.title}\n🔗 Movie Link: ${movie.link}\n🔗 Download Link: https://pixeldrain.com/api/file/${movie.link}?download`
+          `${index + 1}. ${movie.title}\nMovie Link: ${movie.link}\nDownload Link: https://pixeldrain.com/api/file/${movie.link}?download`
       )
       .join('\n\n');
 
-    ctx.reply(`🎥 Search Results for "${movieName}":\n\n${movieList}`);
+    ctx.reply(`Search Results for "${movieName}":\n\n${movieList}`);
   } catch (error) {
     console.error('Error during movie search:', error.message);
-    ctx.reply('❌ An error occurred while searching for the movie. Please try again.');
+    ctx.reply('An error occurred while searching for the movie. Please try again.');
   }
 });
 
@@ -101,32 +101,29 @@ bot.command('download', async (ctx) => {
 bot.command('subtitle', async (ctx) => {
   const movieName = ctx.message.text.split(' ').slice(1).join(' ');
   if (!movieName) {
-    return ctx.reply('⚠️ Please provide a movie name! Example: /subtitle Deadpool');
+    return ctx.reply('Please provide a movie name! Example: /subtitle Deadpool');
   }
 
   try {
-    ctx.reply(`🔍 Searching subtitles for "${movieName}"...`);
+    ctx.reply(`Searching subtitles for "${movieName}"...`);
     const response = await axios.get(`https://api.opensubtitles.com/api/v1/subtitles?query=${encodeURIComponent(movieName)}`, {
       headers: { 'Api-Key': process.env.OPENSUBTITLES_API_KEY },
     });
     const subtitles = response.data.data || [];
 
     if (subtitles.length === 0) {
-      return ctx.reply(`⚠️ No subtitles found for "${movieName}".`);
+      return ctx.reply(`No subtitles found for "${movieName}".`);
     }
 
     const subtitleList = subtitles
       .slice(0, 10)
-      .map(
-        (subtitle, index) =>
-          `${index + 1}. *${subtitle.attributes.language}*\n🔗 [Download Link](${subtitle.attributes.url})`
-      )
+      .map((subtitle, index) => `${index + 1}. Language: ${subtitle.attributes.language}\nDownload Link: ${subtitle.attributes.url}`)
       .join('\n\n');
 
-    ctx.replyWithMarkdown(`📜 *Subtitle Results for "${movieName}":*\n\n${subtitleList}`);
+    ctx.reply(`Subtitle Results for "${movieName}":\n\n${subtitleList}`);
   } catch (error) {
     console.error('Error during subtitle search:', error.message);
-    ctx.reply('❌ An error occurred while searching for subtitles. Please try again.');
+    ctx.reply('An error occurred while searching for subtitles. Please try again.');
   }
 });
 
@@ -137,21 +134,21 @@ bot.command('recommend', async (ctx) => {
     const trendingMovies = response.data.results || [];
 
     if (trendingMovies.length === 0) {
-      return ctx.reply('⚠️ No trending movies found.');
+      return ctx.reply('No trending movies found.');
     }
 
     const recommendations = trendingMovies
       .slice(0, 5)
       .map(
         (movie, index) =>
-          `${index + 1}. *${movie.title}* (${movie.release_date.substring(0, 4)})\n⭐ Rating: ${movie.vote_average}`
+          `${index + 1}. ${movie.title} (${movie.release_date.substring(0, 4)})\nRating: ${movie.vote_average}`
       )
       .join('\n\n');
 
-    ctx.replyWithMarkdown(`🔥 *Trending Movies Today:*\n\n${recommendations}`);
+    ctx.reply(`Trending Movies Today:\n\n${recommendations}`);
   } catch (error) {
     console.error('Error fetching trending movies:', error.message);
-    ctx.reply('❌ An error occurred while fetching trending movies.');
+    ctx.reply('An error occurred while fetching trending movies.');
   }
 });
 
@@ -159,7 +156,7 @@ bot.command('recommend', async (ctx) => {
 bot.command('info', async (ctx) => {
   const movieName = ctx.message.text.split(' ').slice(1).join(' ');
   if (!movieName) {
-    return ctx.reply('⚠️ Please provide a movie name! Example: /info Deadpool');
+    return ctx.reply('Please provide a movie name! Example: /info Deadpool');
   }
 
   try {
@@ -167,19 +164,19 @@ bot.command('info', async (ctx) => {
     const movie = response.data;
 
     if (movie.Response === 'False') {
-      return ctx.reply('⚠️ No movie found with that name.');
+      return ctx.reply('No movie found with that name.');
     }
 
-    ctx.replyWithMarkdown(
-      `🎬 *${movie.Title}*\n` +
-        `⭐ Rating: ${movie.imdbRating}\n` +
-        `📅 Year: ${movie.Year}\n` +
-        `📝 Genre: ${movie.Genre}\n` +
-        `📖 Plot: ${movie.Plot}`
+    ctx.reply(
+      `Title: ${movie.Title}\n` +
+        `Rating: ${movie.imdbRating}\n` +
+        `Year: ${movie.Year}\n` +
+        `Genre: ${movie.Genre}\n` +
+        `Plot: ${movie.Plot}`
     );
   } catch (error) {
     console.error('Error fetching movie info:', error.message);
-    ctx.reply('❌ An error occurred while fetching movie info.');
+    ctx.reply('An error occurred while fetching movie info.');
   }
 });
 
@@ -189,8 +186,7 @@ bot.command('language', (ctx) => {
 
   if (userLanguages[userId]) {
     ctx.reply(
-      `🌐 Your current language preference is: ${userLanguages[userId]}\n\n` +
-        'Reply with one of the following to change it:\n- `English`\n- `French`\n- `Spanish`'
+      `Your current language preference is: ${userLanguages[userId]}\nReply with your new preference: English, French, Spanish`
     );
   } else {
     ctx.reply('Reply with your language preference: English, French, or Spanish.');
@@ -200,7 +196,7 @@ bot.command('language', (ctx) => {
 // Command: /donate
 bot.command('donate', (ctx) => {
   ctx.reply(
-    '💳 Donation Details:\n' +
+    'Donation Details:\n' +
       'Bank Name: Moniepoint\n' +
       'Account Number: 8089336992\n' +
       'Account Name: Babalola Hephzibah Samuel\n\n' +
@@ -212,9 +208,9 @@ bot.command('donate', (ctx) => {
 if (process.env.RENDER_EXTERNAL_URL) {
   bot.telegram.setWebhook(`${process.env.RENDER_EXTERNAL_URL}/webhook`);
   bot.startWebhook('/webhook', null, process.env.PORT || 3000);
-  console.log('🤖 Bot running with webhook!');
+  console.log('Bot running with webhook!');
 } else {
-  bot.launch().then(() => console.log('🤖 Bot running with long polling!'));
+  bot.launch().then(() => console.log('Bot running with long polling!'));
 }
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
