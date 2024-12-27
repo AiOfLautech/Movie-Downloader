@@ -1,33 +1,20 @@
 require("dotenv").config(); // Load environment variables
 const { Telegraf } = require("telegraf");
 const axios = require("axios");
-const fs = require("fs");
 
-// Initialize bot
+// Initialize the bot
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// User data persistence
-const usersFile = "users.json";
-let users = new Set();
-
-// Load existing user data if available
-if (fs.existsSync(usersFile)) {
-  const data = fs.readFileSync(usersFile, "utf-8");
-  users = new Set(JSON.parse(data));
-}
-
-// Save user data to file
-const saveUsers = () => {
-  fs.writeFileSync(usersFile, JSON.stringify(Array.from(users)));
-};
+// Temporary storage for user preferences and interactions
+const userLanguages = {};
+const users = new Set(); // Store unique user IDs
 
 // Middleware to track users
 bot.use((ctx, next) => {
   if (ctx.from) {
     users.add(ctx.from.id);
-    saveUsers();
   }
-  next();
+  return next();
 });
 
 // Command: /start
@@ -40,9 +27,9 @@ bot.start((ctx) => {
       "🎬 `/info <movie_name>` - Get detailed movie information\n" +
       "🌐 `/language` - View or change language preferences\n" +
       "📝 `/feedback` - Provide feedback or suggestions\n" +
+      "👥 `/users` - (Owner only) View user count\n" +
       "🙋 `/owner` - Get bot owner's contact info\n" +
-      "💳 `/donate` - Get donation details\n" +
-      "👥 `/users` - Check the number of users interacting with the bot"
+      "💳 `/donate` - Get donation details"
   );
 });
 
@@ -174,49 +161,96 @@ bot.command("info", async (ctx) => {
   }
 });
 
-// Command: /feedback
+// Command: /language
+bot.command("language", (ctx) => {
+  const userId = ctx.from.id;
+
+  if (userLanguages[userId]) {
+    ctx.reply(
+      `🌐 Your current language preference is: ${userLanguages[userId]}\n\n` +
+        "To change it, reply with one of the following:\n" +
+        "- `English`\n" +
+        "- `French`\n" +
+        "- `Spanish`\n" +
+        "- `German`\n" +
+        "- `Hindi`"
+    );
+  } else {
+    ctx.reply(
+      "🌐 You have not set a language preference yet.\n\nReply with one of the following to select your language:\n" +
+        "- `English`\n" +
+        "- `French`\n" +
+        "- `Spanish`\n" +
+        "- `German`\n" +
+        "- `Hindi`"
+    );
+  }
+});
+
+// Command: /feedback (Send feedback to owner's DM)
 bot.command("feedback", (ctx) => {
   ctx.reply(
-    "We'd love your feedback! Please reply with one of the following:\n" +
-      "- `Good` - If you like the bot\n" +
-      "- `Bad` - If you dislike the bot\n" +
-      "- `Suggestion <your_message>` - To share suggestions"
+    "We'd love your feedback! Reply with:\n" +
+      "- `Good` for positive feedback\n" +
+      "- `Bad` for negative feedback\n" +
+      "- `Suggestion <your_message>` to suggest something new!"
   );
 });
 
-// Handle feedback replies
-bot.on("text", (ctx) => {
-  const feedback = ctx.message.text.toLowerCase();
+bot.on("text", async (ctx) => {
+  const ownerId = process.env.OWNER_ID;
+  const userMessage = ctx.message.text.toLowerCase();
 
-  if (feedback === "good") {
-    ctx.reply("Thank you for your positive feedback! 😊");
-  } else if (feedback === "bad") {
-    ctx.reply("😔 We're sorry to hear that. Please let us know how we can improve.");
-  } else if (feedback.startsWith("suggestion")) {
-    const suggestion = ctx.message.text.split(" ").slice(1).join(" ");
-    if (suggestion) {
-      ctx.reply("💡 Thank you for your suggestion! We'll consider it to improve the bot. 🙏");
-      console.log(`Suggestion received: ${suggestion}`);
-    } else {
-      ctx.reply("⚠️ Please provide your suggestion. Example: `Suggestion Add more features`");
+  if (ctx.from.id.toString() !== ownerId) {
+    if (userMessage === "good") {
+      ctx.reply("Thank you for your feedback! 😊");
+      bot.telegram.sendMessage(ownerId, `👍 Positive feedback from @${ctx.from.username || "User"}`);
+    } else if (userMessage === "bad") {
+      ctx.reply("We're sorry! Let us know how to improve.");
+      bot.telegram.sendMessage(ownerId, `👎 Negative feedback from @${ctx.from.username || "User"}`);
+    } else if (userMessage.startsWith("suggestion")) {
+      const suggestion = userMessage.split(" ").slice(1).join(" ");
+      if (suggestion) {
+        ctx.reply("Thank you for your suggestion! 🙏");
+        bot.telegram.sendMessage(ownerId, `💡 Suggestion from @${ctx.from.username || "User"}: ${suggestion}`);
+      } else {
+        ctx.reply("⚠️ Please include your suggestion after the command.");
+      }
     }
   }
 });
 
 // Command: /users
 bot.command("users", (ctx) => {
-  ctx.reply(`👥 Total number of users who interacted with the bot: ${users.size}`);
+  const ownerId = process.env.OWNER_ID;
+
+  if (ctx.from.id.toString() === ownerId) {
+    ctx.reply(`👥 Total users who interacted with the bot: ${users.size}`);
+  } else {
+    ctx.reply("⚠️ This command is restricted to the bot owner.`);
+  }
 });
 
-// Webhook configuration for Render deployment
-if (process.env.RENDER_EXTERNAL_URL) {
-  bot.telegram.setWebhook(`${process.env.RENDER_EXTERNAL_URL}/webhook`);
-  bot.startWebhook("/webhook", null, process.env.PORT || 3000);
-  console.log("🤖 CineMindBot running with webhook!");
-} else {
-  bot.launch().then(() => console.log("🤖 CineMindBot running with long polling!"));
-}
+// Command: /donate
+bot.command("donate", (ctx) => {
+  ctx.reply(
+    "💳 If you'd like to donate, here are the details:\n" +
+    "Bank Name: Moniepoint\n" +
+    "Account Number: 8089336992\n" +
+    "Account Name: Babalola Hephzibah Samuel\n\n" +
+    "Thank you for your support! 🙏"
+  );
+});
 
 // Graceful shutdown
 process.once("SIGINT", () => bot.stop("SIGINT"));
 process.once("SIGTERM", () => bot.stop("SIGTERM"));
+
+// Launch the bot
+if (process.env.RENDER_EXTERNAL_URL) {
+  bot.telegram.setWebhook(`${process.env.RENDER_EXTERNAL_URL}/webhook`);
+  bot.startWebhook("/webhook", null, process.env.PORT || 3000);
+  console.log("🤖 CineMindBot is running with webhook!");
+} else {
+  bot.launch().then(() => console.log("🤖 CineMindBot is running with long polling!"));
+            }
