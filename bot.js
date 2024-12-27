@@ -1,12 +1,34 @@
 require("dotenv").config(); // Load environment variables
 const { Telegraf } = require("telegraf");
 const axios = require("axios");
-const { createCanvas } = require('canvas');  // For generating the donation image
+const fs = require("fs");
 
-const bot = new Telegraf(process.env.BOT_TOKEN); // Initialize bot
+// Initialize bot
+const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// Temporary storage for user preferences (e.g., language)
-const userLanguages = {};
+// User data persistence
+const usersFile = "users.json";
+let users = new Set();
+
+// Load existing user data if available
+if (fs.existsSync(usersFile)) {
+  const data = fs.readFileSync(usersFile, "utf-8");
+  users = new Set(JSON.parse(data));
+}
+
+// Save user data to file
+const saveUsers = () => {
+  fs.writeFileSync(usersFile, JSON.stringify(Array.from(users)));
+};
+
+// Middleware to track users
+bot.use((ctx, next) => {
+  if (ctx.from) {
+    users.add(ctx.from.id);
+    saveUsers();
+  }
+  next();
+});
 
 // Command: /start
 bot.start((ctx) => {
@@ -19,7 +41,8 @@ bot.start((ctx) => {
       "🌐 `/language` - View or change language preferences\n" +
       "📝 `/feedback` - Provide feedback or suggestions\n" +
       "🙋 `/owner` - Get bot owner's contact info\n" +
-      "💳 `/donate` - Get donation details"
+      "💳 `/donate` - Get donation details\n" +
+      "👥 `/users` - Check the number of users interacting with the bot"
   );
 });
 
@@ -151,51 +174,6 @@ bot.command("info", async (ctx) => {
   }
 });
 
-// Command: /language
-bot.command("language", (ctx) => {
-  const userId = ctx.from.id;
-
-  if (userLanguages[userId]) {
-    ctx.reply(
-      `🌐 Your current language preference is: ${userLanguages[userId]}\n\n` +
-        "To change it, reply with one of the following:\n" +
-        "- `English`\n" +
-        "- `French`\n" +
-        "- `Spanish`\n" +
-        "- `German`\n" +
-        "- `Hindi`"
-    );
-  } else {
-    ctx.reply(
-      "🌐 You have not set a language preference yet.\n\nReply with one of the following to select your language:\n" +
-        "- `English`\n" +
-        "- `French`\n" +
-        "- `Spanish`\n" +
-        "- `German`\n" +
-        "- `Hindi`"
-    );
-  }
-});
-
-// Handle language preference replies
-bot.on("text", (ctx) => {
-  const userId = ctx.from.id;
-  const text = ctx.message.text.toLowerCase();
-
-  const languages = {
-    english: "English",
-    french: "French",
-    spanish: "Spanish",
-    german: "German",
-    hindi: "Hindi",
-  };
-
-  if (languages[text]) {
-    userLanguages[userId] = languages[text];
-    ctx.reply(`✅ Your language preference has been set to: ${languages[text]}`);
-  }
-});
-
 // Command: /feedback
 bot.command("feedback", (ctx) => {
   ctx.reply(
@@ -208,31 +186,26 @@ bot.command("feedback", (ctx) => {
 
 // Handle feedback replies
 bot.on("text", (ctx) => {
-  const message = ctx.message.text.toLowerCase();
+  const feedback = ctx.message.text.toLowerCase();
 
-  if (message === "good") {
+  if (feedback === "good") {
     ctx.reply("Thank you for your positive feedback! 😊");
-  } else if (message === "bad") {
-    ctx.reply("We're sorry to hear that. Could you share how we can improve?");
-  } else if (message.startsWith("suggestion")) {
+  } else if (feedback === "bad") {
+    ctx.reply("😔 We're sorry to hear that. Please let us know how we can improve.");
+  } else if (feedback.startsWith("suggestion")) {
     const suggestion = ctx.message.text.split(" ").slice(1).join(" ");
     if (suggestion) {
-      ctx.reply("Thank you for your suggestion! We'll consider it. 🙏");
+      ctx.reply("💡 Thank you for your suggestion! We'll consider it to improve the bot. 🙏");
+      console.log(`Suggestion received: ${suggestion}`);
     } else {
       ctx.reply("⚠️ Please provide your suggestion. Example: `Suggestion Add more features`");
     }
   }
 });
 
-// Command: /donate
-bot.command("donate", (ctx) => {
-  ctx.reply(
-    "💳 If you'd like to donate, here are the details:\n" +
-    "Bank Name: Moniepoint\n" +
-    "Account Number: 8089336992\n" +
-    "Account Name: Babalola Hephzibah Samuel\n\n" +
-    "Thank you for your support! 🙏"
-  );
+// Command: /users
+bot.command("users", (ctx) => {
+  ctx.reply(`👥 Total number of users who interacted with the bot: ${users.size}`);
 });
 
 // Webhook configuration for Render deployment
