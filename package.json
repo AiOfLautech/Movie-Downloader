@@ -1,28 +1,24 @@
 {
-  "name": "cinemindbot",
+  "name": "CineMindBot",
   "version": "1.0.0",
-  "description": "A Telegram bot to search, download movies, and fetch movie-related information.",
+  "description": "Telegram Bot for Movie Search, Subtitles, Recommendations, and More",
   "main": "index.js",
   "scripts": {
     "start": "node bot.js",
     "dev": "nodemon bot.js"
   },
-  "keywords": [
-    "telegram",
-    "bot",
-    "movies",
-    "subtitles",
-    "recommendations",
-    "cinemind"
-  ],
-  "author": "AI of Lautech",
-  "license": "MIT",
   "dependencies": {
-    "axios": "^1.5.0",
-    "dotenv": "^16.3.1",
-    "telegraf": "^4.12.3"
+    "axios": "^1.3.4",
+    "canvas": "^2.11.0",
+    "dotenv": "^16.1.4",
+    "telegraf": "^4.12.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
-  }
+    "nodemon": "^2.0.20"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "author": "AI of Lautech",
+  "license": "MIT"
 }
