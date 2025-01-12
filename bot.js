@@ -1,300 +1,229 @@
-require("dotenv").config();
 const { Telegraf } = require("telegraf");
 const axios = require("axios");
+const express = require("express");
+require("dotenv").config();
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// Temporary storage for user preferences and feedback
-const userLanguages = {};
-const feedbackData = {};
+// Webhook setup for Render
+const app = express();
+app.use(express.json());
 
-// Command: /start
+app.post(`/${process.env.BOT_TOKEN}`, (req, res) => {
+  bot.handleUpdate(req.body);
+  res.sendStatus(200);
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
+
+// Start webhook
+bot.telegram.setWebhook(`${process.env.WEBHOOK_URL}/${process.env.BOT_TOKEN}`);
+
+// Welcome Message
 bot.start((ctx) => {
   ctx.reply(
-    "👋 Welcome to CineMindBot!\n\nHere are the available commands:\n" +
-      "🎥 `/download <movie_name>` - Search and download movies\n" +
-      "📜 `/subtitle <movie_name>` - Download subtitles for movies\n" +
-      "🔥 `/recommend` - Get trending movie recommendations\n" +
-      "🎬 `/info <movie_name>` - Get detailed movie information\n" +
-      "🌐 `/language` - View or change language preferences\n" +
-      "📝 `/feedback` - Provide feedback or suggestions\n" +
-      "🙋 `/owner` - Get bot owner's contact info"
+    `👋 Welcome to CineMindBot!\n\n` +
+      `🎥 Use me to search, download, and explore movies.\n\n` +
+      `📜 Commands List:\n` +
+      `🎥 /download <movie_name> - Search and download movies\n` +
+      `📜 /subtitle <movie_name> - Download subtitles\n` +
+      `🔥 /recommend - Trending movie recommendations\n` +
+      `🎬 /info <movie_name> - Get detailed movie information\n` +
+      `🌐 /language - Change language preferences\n` +
+      `📝 /feedback - Send feedback or suggestions\n` +
+      `🙋 /owner - Bot owner contact details`
   );
 });
 
-// Command: /owner
-bot.command("owner", (ctx) => {
-  ctx.reply("🤖 Bot Owner:\nAI OF LAUTECH\n📞 WhatsApp: +2348089336992");
-});
-
-// Command: /download
+// /download command
 bot.command("download", async (ctx) => {
-  const movieName = ctx.message.text.split(" ").slice(1).join(" ");
-  if (!movieName) {
-    return ctx.reply("⚠️ Please provide a movie name! Example: `/download Venom`");
+  const query = ctx.message.text.split(" ").slice(1).join(" ");
+  if (!query) {
+    return ctx.reply("❗ Please provide a movie name. Example: `/download Venom`");
   }
 
   try {
-    ctx.reply(`🔍 Searching for "${movieName}"...`);
+    const response = await axios.get(
+      `https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(
+        query
+      )}`
+    );
+    const results = response.data.result.slice(0, 5);
 
-    // Fetch movie data from SinhalaSub API
-    const searchUrl = `https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(movieName)}`;
-    const response = await axios.get(searchUrl);
-    const movies = response.data.result || [];
-
-    if (movies.length === 0) {
-      return ctx.reply(`⚠️ No results found for "${movieName}".`);
+    if (!results.length) {
+      return ctx.reply("❌ No results found for your search.");
     }
 
-    // Display search results
-    const movieList = movies.map((movie, index) => ({
-      text: `${index + 1}. ${movie.title} (${movie.year})`,
-      callback_data: `movie_${index}`,
-    }));
-
-    ctx.reply("🎥 Select a movie from the list:", {
-      reply_markup: {
-        inline_keyboard: movieList.map((movie) => [movie]),
-      },
+    let movieList = "🎥 *Search Results:*\n\n";
+    results.forEach((movie, index) => {
+      movieList += `${index + 1}. *${movie.title}* (${movie.year})\n🔗 [Details](${movie.link})\n\n`;
     });
 
-    // Handle movie selection
-    movies.forEach((movie, index) => {
-      bot.action(`movie_${index}`, async (actionCtx) => {
-        const selectedMovie = movies[index];
-        actionCtx.reply(
-          `🎥 *Selected Movie:*\n` +
-            `📜 *Title*: ${selectedMovie.title}\n` +
-            `🗓️ *Year*: ${selectedMovie.year}\n` +
-            `⭐ *IMDB*: ${selectedMovie.imdb}\n` +
-            `🔗 [View Details](${selectedMovie.link})\n\nFetching download links...`,
-          { parse_mode: "Markdown" }
-        );
-
-        // Fetch download links
-        const movieDetailsUrl = `https://api-site-2.vercel.app/api/sinhalasub/movie?url=${encodeURIComponent(
-          selectedMovie.link
-        )}`;
-        const movieDetails = await axios.get(movieDetailsUrl);
-
-        const downloadLinks = movieDetails.data.result?.dl_links || [];
-        if (downloadLinks.length === 0) {
-          return actionCtx.reply("⚠️ No PixelDrain links found for this movie.");
-        }
-
-        // Display download links
-        const linksMessage = downloadLinks
-          .map(
-            (link, idx) =>
-              `*${idx + 1}.* ${link.quality} (${link.size})\n🔗 [Download Link](${link.link})`
-          )
-          .join("\n\n");
-
-        actionCtx.replyWithMarkdown(
-          `🎬 *Download Links for "${selectedMovie.title}":*\n\n${linksMessage}`
-        );
-      });
-    });
+    ctx.reply(movieList, { parse_mode: "Markdown" });
   } catch (error) {
-    console.error("Error during /download command:", error.message);
-    ctx.reply("❌ An error occurred while searching for the movie. Please try again.");
+    console.error(error.message);
+    ctx.reply("❌ Error fetching movie data. Please try again.");
   }
 });
 
-// Command: /subtitle
+// /subtitle command
 bot.command("subtitle", async (ctx) => {
-  const movieName = ctx.message.text.split(" ").slice(1).join(" ");
-  if (!movieName) {
-    return ctx.reply("⚠️ Please provide a movie name! Example: `/subtitle Deadpool`");
+  const query = ctx.message.text.split(" ").slice(1).join(" ");
+  if (!query) {
+    return ctx.reply("❗ Please provide a movie name. Example: `/subtitle Venom`");
   }
 
   try {
-    ctx.reply(`🔍 Searching subtitles for "${movieName}"...`);
+    const response = await axios.get(
+      `https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(
+        query
+      )}`
+    );
+    const results = response.data.result.slice(0, 5);
 
-    const searchUrl = `https://api.opensubtitles.com/api/v1/subtitles?query=${encodeURIComponent(movieName)}`;
-    const response = await axios.get(searchUrl, {
-      headers: { "Api-Key": process.env.OPENSUBTITLES_API_KEY },
-    });
-    const subtitles = response.data.data || [];
-
-    if (subtitles.length === 0) {
-      return ctx.reply(`⚠️ No subtitles found for "${movieName}".`);
+    if (!results.length) {
+      return ctx.reply("❌ No results found for your search.");
     }
 
-    const subtitleList = subtitles
-      .slice(0, 10)
-      .map(
-        (subtitle, index) =>
-          `${index + 1}. *${subtitle.attributes.language}*\n🔗 [Download Link](${subtitle.attributes.url})`
-      )
-      .join("\n\n");
+    let subtitleList = "📜 *Subtitle Search Results:*\n\n";
+    results.forEach((movie, index) => {
+      subtitleList += `${index + 1}. *${movie.title}*\n🔗 [Download Subtitle](${movie.link})\n\n`;
+    });
 
-    ctx.replyWithMarkdown(`📜 *Subtitle Results for "${movieName}":*\n\n${subtitleList}`);
+    ctx.reply(subtitleList, { parse_mode: "Markdown" });
   } catch (error) {
-    console.error("Error during subtitle search:", error.message);
-    ctx.reply("❌ An error occurred while searching for subtitles. Please try again.");
+    console.error(error.message);
+    ctx.reply("❌ Error fetching subtitles. Please try again.");
   }
 });
 
-// Command: /recommend
+// /recommend command
 bot.command("recommend", async (ctx) => {
   try {
-    const url = `https://api.themoviedb.org/3/trending/movie/day?api_key=${process.env.TMDB_API_KEY}`;
-    const response = await axios.get(url);
-    const trendingMovies = response.data.results || [];
+    const response = await axios.get(
+      "https://api.example.com/trending" // Replace with a valid trending movies API
+    );
+    const results = response.data.results.slice(0, 5);
 
-    if (trendingMovies.length === 0) {
-      return ctx.reply("⚠️ No trending movies found.");
+    if (!results.length) {
+      return ctx.reply("❌ No trending movies found.");
     }
 
-    const recommendations = trendingMovies
-      .slice(0, 5)
-      .map(
-        (movie, index) =>
-          `${index + 1}. *${movie.title}* (${movie.release_date.substring(0, 4)})\n⭐ Rating: ${movie.vote_average}`
-      )
-      .join("\n\n");
+    let recommendList = "🔥 *Trending Movies:*\n\n";
+    results.forEach((movie, index) => {
+      recommendList += `${index + 1}. *${movie.title}*\n🎞️ ${movie.overview}\n\n`;
+    });
 
-    ctx.replyWithMarkdown(`🔥 *Trending Movies Today:*\n\n${recommendations}`);
+    ctx.reply(recommendList, { parse_mode: "Markdown" });
   } catch (error) {
-    console.error("Error fetching trending movies:", error.message);
-    ctx.reply("❌ An error occurred while fetching trending movies.");
+    console.error(error.message);
+    ctx.reply("❌ Error fetching trending movies. Please try again.");
   }
 });
 
-// Command: /info
+// /info command
 bot.command("info", async (ctx) => {
-  const movieName = ctx.message.text.split(" ").slice(1).join(" ");
-  if (!movieName) {
-    return ctx.reply("⚠️ Please provide a movie name! Example: `/info Deadpool`");
+  const query = ctx.message.text.split(" ").slice(1).join(" ");
+  if (!query) {
+    return ctx.reply("❗ Please provide a movie name. Example: `/info Venom`");
   }
 
   try {
-    const url = `http://www.omdbapi.com/?t=${encodeURIComponent(movieName)}&apikey=${process.env.OMDB_API_KEY}`;
-    const response = await axios.get(url);
+    const response = await axios.get(
+      `https://api.example.com/movie/info?q=${encodeURIComponent(query)}` // Replace with a valid movie info API
+    );
     const movie = response.data;
 
-    if (movie.Response === "False") {
-      return ctx.reply("⚠️ No movie found with that name.");
+    if (!movie) {
+      return ctx.reply("❌ No movie information found.");
     }
 
-    ctx.replyWithMarkdown(
-      `🎬 *${movie.Title}*\n` +
-        `⭐ Rating: ${movie.imdbRating}\n` +
-        `📅 Year: ${movie.Year}\n` +
-        `📝 Genre: ${movie.Genre}\n` +
-        `📖 Plot: ${movie.Plot}`
+    ctx.reply(
+      `🎬 *${movie.title}*\n\n` +
+        `📅 Release Date: ${movie.release_date}\n` +
+        `⭐ IMDB Rating: ${movie.rating}\n` +
+        `🎞️ Overview: ${movie.overview}\n` +
+        `🔗 [More Details](${movie.url})`,
+      { parse_mode: "Markdown" }
     );
   } catch (error) {
-    console.error("Error fetching movie info:", error.message);
-    ctx.reply("❌ An error occurred while fetching movie info.");
+    console.error(error.message);
+    ctx.reply("❌ Error fetching movie information. Please try again.");
   }
 });
 
-// Command: /language
+// /language command
+const userLanguages = {};
 bot.command("language", (ctx) => {
-  const userId = ctx.from.id;
+  ctx.reply(
+    "🌐 Choose your language:\n\n" +
+      "1. English - Reply with `1`\n" +
+      "2. Sinhala - Reply with `2`"
+  );
 
-  if (userLanguages[userId]) {
-    ctx.reply(
-      `🌐 Your current language preference is: ${userLanguages[userId]}\n\n` +
-        "To change it, reply with one of the following:\n" +
-        "- `English`\n" +
-        "- `French`\n" +
-        "- `Spanish`\n" +
-        "- `German`\n" +
-        "- `Hindi`"
-    );
-  } else {
-    ctx.reply(
-      "🌐 You have not set a language preference yet.\n\nReply with one of the following to select your language:\n" +
-        "- `English`\n" +
-        "- `French`\n" +
-        "- `Spanish`\n" +
-        "- `German`\n" +
-        "- `Hindi`"
-    );
-  }
+  const userId = ctx.from.id;
+  userLanguages[userId] = null; // Resetting the preference
 });
 
-// Handle language preference replies
 bot.on("text", (ctx) => {
   const userId = ctx.from.id;
-  const text = ctx.message.text.toLowerCase();
 
-  const languages = {
-    english: "English",
-    french: "French",
-    spanish: "Spanish",
-    german: "German",
-    hindi: "Hindi",
-  };
-
-  if (languages[text]) {
-    userLanguages[userId] = languages[text];
-    ctx.reply(`✅ Your language preference has been set to: ${languages[text]}`);
+  if (userLanguages[userId] === null) {
+    const choice = ctx.message.text.trim();
+    if (choice === "1") {
+      userLanguages[userId] = "English";
+      ctx.reply("✅ Language set to English.");
+    } else if (choice === "2") {
+      userLanguages[userId] = "Sinhala";
+      ctx.reply("✅ Language set to Sinhala.");
+    } else {
+      ctx.reply("❌ Invalid choice. Please reply with `1` or `2`.");
+    }
+    return;
   }
 });
 
-// Command: /feedback
-bot .command("feedback", (ctx) => {
+// /feedback command
+bot.command("feedback", (ctx) => {
   ctx.reply(
-    "📝 Please send your feedback or suggestions.\n" +
-      "Your message will be forwarded directly to the bot owner."
+    "📝 Please send your feedback or suggestions.\nYour message will be forwarded directly to the bot owner."
   );
 });
 
-// Handle feedback messages
 bot.on("text", async (ctx) => {
   const text = ctx.message.text;
-
-  // Check if the user is providing feedback
-  if (text.startsWith("/")) return; // Skip command messages
+  if (text.startsWith("/")) return; // Ignore other commands
 
   const userId = ctx.from.id;
   const username = ctx.from.username || "Unknown User";
-  const ownerId = process.env.OWNER_ID; // Bot owner's Telegram user ID
+  const ownerId = process.env.OWNER_ID; // Replace with owner's Telegram ID
 
   try {
-    // Forward feedback to the bot owner
     await bot.telegram.sendMessage(
       ownerId,
-      `📩 *New Feedback Received:*\n\n` +
-        `👤 *From:* ${username} (ID: ${userId})\n` +
-        `📝 *Message:* ${text}`,
+      `📩 *New Feedback Received:*\n\n👤 *From:* ${username} (ID: ${userId})\n📝 *Message:* ${text}`,
       { parse_mode: "Markdown" }
     );
-
     ctx.reply("✅ Thank you for your feedback! It has been sent to the bot owner.");
   } catch (error) {
     console.error("Error forwarding feedback:", error.message);
-    ctx.reply("❌ An error occurred while sending your feedback. Please try again.");
+    ctx.reply("❌ Error sending feedback. Please try again.");
   }
 });
 
-// Default handler for unsupported commands or messages
+// /owner command
+bot.command("owner", (ctx) => {
+  const ownerContact = process.env.OWNER_CONTACT || "Owner's contact not available";
+  ctx.reply(`🙋 Bot Owner's Contact:\n${ownerContact}`);
+});
+
+// Handle unknown commands
 bot.on("text", (ctx) => {
   const text = ctx.message.text.toLowerCase();
-
   if (text.startsWith("/")) {
-    ctx.reply(
-      "⚠️ Unknown command. Please use one of the following:\n\n" +
-        "🎥 `/download <movie_name>` - Search and download movies\n" +
-        "📜 `/subtitle <movie_name>` - Download subtitles for movies\n" +
-        "🔥 `/recommend` - Get trending movie recommendations\n" +
-        "🎬 `/info <movie_name>` - Get detailed movie information\n" +
-        "🌐 `/language` - View or change language preferences\n" +
-        "📝 `/feedback` - Provide feedback or suggestions\n" +
-        "🙋 `/owner` - Get bot owner's contact info"
-    );
+    ctx.reply("⚠️ Unknown command. Use `/start` to see the list of available commands.");
   }
 });
-
-// Start the bot
-bot.launch()
-  .then(() => console.log("🚀 CineMindBot is running..."))
-  .catch((error) => console.error("❌ Failed to launch the bot:", error.message));
-
-// Graceful shutdown
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
