@@ -3,11 +3,11 @@ const { Telegraf } = require("telegraf");
 const axios = require("axios");
 require("dotenv").config();
 
-const bot = new Telegraf(process.env.BOT_TOKEN); // Initialize bot
+const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Temporary storage for user preferences
+// Temporary storage for user preferences and feedback
 const userLanguages = {};
 
 // Webhook Endpoint for Render
@@ -60,20 +60,33 @@ bot.command("download", async (ctx) => {
   try {
     ctx.reply(`🔍 Searching for "${movieName}"...`);
 
-    const searchUrl = `https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(movieName)}`;
-    const response = await axios.get(searchUrl);
-    const movies = response.data.result || [];
+    // SinhalaSub API
+    const sinhalaSubUrl = `https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(movieName)}`;
+    const sinhalaResponse = await axios.get(sinhalaSubUrl);
+    const sinhalaMovies = sinhalaResponse.data.result || [];
 
-    if (!movies.length) {
-      return ctx.reply(`⚠️ No results found for "${movieName}".`);
+    // PixelDrain API (Optional)
+    let pixelDrainDownload = "No PixelDrain downloads found.\n\n";
+    if (sinhalaMovies.length) {
+      const selectedMovie = sinhalaMovies[0];
+      const fileId = selectedMovie.link.split("/").pop();
+      const pixelDrainUrl = `https://pixeldrain.com/api/file/${fileId}?download`;
+      try {
+        const pixelResponse = await axios.get(pixelDrainUrl);
+        pixelDrainDownload = pixelResponse.data.success
+          ? `🔗 Direct Download Link: ${pixelResponse.data.url}\n\n`
+          : "❌ Unable to fetch PixelDrain download.";
+      } catch (e) {
+        console.error("PixelDrain API Error:", e.message);
+      }
     }
 
     let movieList = "🎥 *Search Results:*\n\n";
-    movies.forEach((movie, index) => {
+    sinhalaMovies.forEach((movie, index) => {
       movieList += `${index + 1}. *${movie.title}*\nIMDB: ${movie.imdb}\nYear: ${movie.year}\n🔗 [Link](${movie.link})\n\n`;
     });
 
-    ctx.replyWithMarkdown(movieList);
+    ctx.replyWithMarkdown(`${movieList}\n${pixelDrainDownload}`);
   } catch (error) {
     console.error("Error during /download command:", error.message);
     ctx.reply("❌ An error occurred while searching for the movie. Please try again later.");
@@ -208,9 +221,12 @@ bot.on("text", (ctx) => {
 
 // Command: /feedback
 bot.command("feedback", (ctx) => {
-  const userId = ctx.from.id;
-  const feedbackText = "🌟 Please share your feedback:\n- `Good`\n- `Bad`\n- `Suggestion <message>`";
-  ctx.reply(feedbackText);
+  ctx.reply(
+    "🌟 Please share your feedback:\n\n" +
+      "- `Good`\n" +
+      "- `Bad`\n" +
+      "- `Suggestion <message>`\n"
+  );
 });
 
 // Handle feedback
@@ -219,10 +235,18 @@ bot.on("text", (ctx) => {
   if (text.startsWith("Suggestion")) {
     const suggestion = text.split(" ").slice(1).join(" ");
     if (suggestion) {
-      ctx.telegram.sendMessage(process.env.OWNER_ID, `📥 New suggestion from ${ctx.from.first_name}: ${suggestion}`);
+      ctx.telegram.sendMessage(process.env.OWNER_ID, `📥 New suggestion from ${ctx.from.first_name}:\n${suggestion}`);
       ctx.reply("✅ Your suggestion has been sent. Thank you!");
     } else {
       ctx.reply("⚠️ Please provide your suggestion after 'Suggestion'.");
     }
+  } else if (text.toLowerCase() === "good" || text.toLowerCase() === "bad") {
+    const feedbackType = text.toLowerCase() === "good" ? "Positive" : "Negative";
+    ctx.telegram.sendMessage(process.env.OWNER_ID, `📥 ${feedbackType} feedback from ${ctx.from.first_name}`);
+    ctx.reply(`✅ Thank you for your ${feedbackType.toLowerCase()} feedback!`);
   }
 });
+
+// Graceful shutdown
+process.once("SIGINT", () => bot.stop("SIGINT"));
+process.once("SIGTERM", () => bot.stop("SIGTERM"));
