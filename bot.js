@@ -1,53 +1,86 @@
-const express = require("express");
+require("dotenv").config(); // Load environment variables
 const { Telegraf } = require("telegraf");
 const axios = require("axios");
-require("dotenv").config();
 
-const bot = new Telegraf(process.env.BOT_TOKEN); // Initialize bot
-const app = express();
-const PORT = process.env.PORT || 3000;
+const bot = new Telegraf(process.env.BOT_TOKEN);
+const ownerId = process.env.OWNER_ID; // Bot owner's Telegram user ID
 
-// Temporary storage for user preferences
+// Temporary storage for user preferences (e.g., language)
 const userLanguages = {};
-
-// Webhook Endpoint for Render
-app.use(express.json());
-app.post(`/webhook`, (req, res) => {
-  bot.handleUpdate(req.body);
-  res.status(200).send("OK");
-});
-
-// Start Webhook or Long Polling
-if (process.env.RENDER_EXTERNAL_URL) {
-  bot.telegram.setWebhook(`${process.env.RENDER_EXTERNAL_URL}/webhook`);
-  app.listen(PORT, () => {
-    console.log(`🤖 Bot running on Webhook at ${process.env.RENDER_EXTERNAL_URL}/webhook`);
-  });
-} else {
-  bot.launch().then(() => console.log("🤖 Bot running with long polling!"));
-}
-
-// Graceful shutdown
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
 
 // Command: /start
 bot.start((ctx) => {
   ctx.reply(
-    "👋 Welcome to CineMindBot!\n\nHere are the available commands:\n" +
-      "🎥 `/download <movie_name>` - Search and download movies\n" +
-      "📜 `/subtitle <movie_name>` - Download subtitles for movies\n" +
-      "🔥 `/recommend` - Get trending movie recommendations\n" +
-      "🎬 `/info <movie_name>` - Get detailed movie information\n" +
-      "🌐 `/language` - View or change language preferences\n" +
-      "📝 `/feedback` - Provide feedback or suggestions\n" +
-      "🙋 `/owner` - Get bot owner's contact info"
+    `👋 Welcome, ${ctx.from.first_name}!\n\n` +
+      "This bot allows you to:\n" +
+      "📽️ Search for movies with Sinhala subtitles.\n" +
+      "📥 Get direct download links from PixelDrain.\n" +
+      "💬 Send feedback and suggestions.\n\n" +
+      "Use /help to see all available commands."
   );
 });
 
-// Command: /owner
-bot.command("owner", (ctx) => {
-  ctx.reply("🤖 Bot Owner:\nAI OF LAUTECH\n📞 WhatsApp: +2348089336992");
+// Command: /help
+bot.help((ctx) => {
+  ctx.reply(
+    "📖 *Available Commands:*\n\n" +
+      "1️⃣ /start - Start the bot\n" +
+      "2️⃣ /help - View all commands\n" +
+      "3️⃣ /language - Set your preferred language\n" +
+      "4️⃣ /feedback - Send feedback or suggestions\n" +
+      "5️⃣ /download <movie_name> - Search for movies and download links\n"
+  );
+});
+
+// Command: /language
+bot.command("language", (ctx) => {
+  ctx.reply(
+    "🌐 *Available Languages:*\n" +
+      "1️⃣ English\n" +
+      "2️⃣ Sinhala\n\n" +
+      "Reply with your choice (e.g., 'English')."
+  );
+});
+
+// Handle language selection
+bot.on("text", (ctx) => {
+  const text = ctx.message.text.toLowerCase();
+  if (text === "english" || text === "sinhala") {
+    userLanguages[ctx.from.id] = text;
+    ctx.reply(`✅ Language set to ${text.charAt(0).toUpperCase() + text.slice(1)}.`);
+  }
+});
+
+// Command: /feedback
+bot.command("feedback", (ctx) => {
+  ctx.reply(
+    "📝 *We value your feedback!*\n\n" +
+      "1️⃣ Reply 'Good' if you like the bot.\n" +
+      "2️⃣ Reply 'Bad' if you dislike the bot.\n" +
+      "3️⃣ Reply 'Suggestion <your_message>' to share your suggestions."
+  );
+});
+
+// Handle feedback replies
+bot.on("text", (ctx) => {
+  const userId = ctx.from.id;
+  const message = ctx.message.text.toLowerCase();
+
+  if (message === "good") {
+    ctx.reply("✅ Thank you for your positive feedback!");
+    if (ownerId) bot.telegram.sendMessage(ownerId, `👍 Feedback from user ${userId}: Good`);
+  } else if (message === "bad") {
+    ctx.reply("⚠️ Sorry to hear that. Please share how we can improve.");
+    if (ownerId) bot.telegram.sendMessage(ownerId, `👎 Feedback from user ${userId}: Bad`);
+  } else if (message.startsWith("suggestion")) {
+    const suggestion = message.split(" ").slice(1).join(" ");
+    if (suggestion) {
+      ctx.reply("✅ Thank you for your suggestion!");
+      if (ownerId) bot.telegram.sendMessage(ownerId, `💡 Suggestion from user ${userId}: ${suggestion}`);
+    } else {
+      ctx.reply("⚠️ Please provide a suggestion. Example: 'Suggestion Add more features'.");
+    }
+  }
 });
 
 // Command: /download
@@ -60,169 +93,73 @@ bot.command("download", async (ctx) => {
   try {
     ctx.reply(`🔍 Searching for "${movieName}"...`);
 
-    const searchUrl = `https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(movieName)}`;
-    const response = await axios.get(searchUrl);
-    const movies = response.data.result || [];
+    // Step 1: Fetch movie data from SinhalaSub API
+    const sinhalaSearchUrl = `https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(movieName)}`;
+    const sinhalaResponse = await axios.get(sinhalaSearchUrl);
+    const movies = sinhalaResponse.data.result || [];
 
-    if (!movies.length) {
+    if (movies.length === 0) {
       return ctx.reply(`⚠️ No results found for "${movieName}".`);
     }
 
+    // Step 2: Display search results
     let movieList = "🎥 *Search Results:*\n\n";
     movies.forEach((movie, index) => {
-      movieList += `${index + 1}. *${movie.title}*\nIMDB: ${movie.imdb}\nYear: ${movie.year}\n🔗 [Link](${movie.link})\n\n`;
+      movieList += `*${index + 1}.* ${movie.title} (${movie.year})\n🔗 [More Info](${movie.link})\n\n`;
     });
 
     ctx.replyWithMarkdown(movieList);
+
+    // Step 3: Prompt user for a file field (PixelDrain integration)
+    ctx.reply("📥 *Do you have a file field (e.g., 'ABC123DEF') for PixelDrain?*\n\nIf yes, reply with the field to get the direct download link.");
   } catch (error) {
     console.error("Error during /download command:", error.message);
     ctx.reply("❌ An error occurred while searching for the movie. Please try again later.");
   }
 });
 
-// Command: /subtitle
-bot.command("subtitle", async (ctx) => {
-  const movieName = ctx.message.text.split(" ").slice(1).join(" ");
-  if (!movieName) {
-    return ctx.reply("⚠️ Please provide a movie name! Example: `/subtitle Deadpool`");
-  }
+// Handle PixelDrain field and provide a download link
+bot.on("text", async (ctx) => {
+  const field = ctx.message.text.trim();
+  const fieldRegex = /^[A-Za-z0-9]{9}$/; // PixelDrain file field format
 
-  try {
-    const searchUrl = `https://api.opensubtitles.com/api/v1/subtitles?query=${encodeURIComponent(movieName)}`;
-    const response = await axios.get(searchUrl, {
-      headers: { "Api-Key": process.env.OPENSUBTITLES_API_KEY },
-    });
-    const subtitles = response.data.data || [];
+  if (fieldRegex.test(field)) {
+    try {
+      const pixelDrainUrl = `https://pixeldrain.com/api/file/${field}?download`;
+      const response = await axios.get(pixelDrainUrl);
 
-    if (!subtitles.length) {
-      return ctx.reply(`⚠️ No subtitles found for "${movieName}".`);
-    }
+      if (response.data.success === false) {
+        return ctx.reply("⚠️ The requested file could not be found. Please check the field and try again.");
+      }
 
-    let subtitleList = `📜 *Subtitles for "${movieName}":*\n\n`;
-    subtitles.forEach((subtitle, index) => {
-      subtitleList += `${index + 1}. Language: *${subtitle.attributes.language}*\n🔗 [Download Link](${subtitle.attributes.url})\n\n`;
-    });
-
-    ctx.replyWithMarkdown(subtitleList);
-  } catch (error) {
-    console.error("Error during /subtitle command:", error.message);
-    ctx.reply("❌ An error occurred while fetching subtitles.");
-  }
-});
-
-// Command: /recommend
-bot.command("recommend", async (ctx) => {
-  try {
-    const url = `https://api.themoviedb.org/3/trending/movie/day?api_key=${process.env.TMDB_API_KEY}`;
-    const response = await axios.get(url);
-    const trendingMovies = response.data.results || [];
-
-    if (!trendingMovies.length) {
-      return ctx.reply("⚠️ No trending movies found.");
-    }
-
-    let recommendations = `🔥 *Trending Movies Today:*\n\n`;
-    trendingMovies.slice(0, 5).forEach((movie, index) => {
-      recommendations += `${index + 1}. *${movie.title}* (${movie.release_date.substring(0, 4)})\n⭐ Rating: ${movie.vote_average}\n\n`;
-    });
-
-    ctx.replyWithMarkdown(recommendations);
-  } catch (error) {
-    console.error("Error during /recommend command:", error.message);
-    ctx.reply("❌ An error occurred while fetching trending movies.");
-  }
-});
-
-// Command: /info
-bot.command("info", async (ctx) => {
-  const movieName = ctx.message.text.split(" ").slice(1).join(" ");
-  if (!movieName) {
-    return ctx.reply("⚠️ Please provide a movie name! Example: `/info Deadpool`");
-  }
-
-  try {
-    const url = `http://www.omdbapi.com/?t=${encodeURIComponent(movieName)}&apikey=${process.env.OMDB_API_KEY}`;
-    const response = await axios.get(url);
-    const movie = response.data;
-
-    if (movie.Response === "False") {
-      return ctx.reply("⚠️ No movie found with that name.");
-    }
-
-    ctx.replyWithMarkdown(
-      `🎬 *${movie.Title}*\n` +
-        `⭐ Rating: ${movie.imdbRating}\n` +
-        `📅 Year: ${movie.Year}\n` +
-        `📝 Genre: ${movie.Genre}\n` +
-        `📖 Plot: ${movie.Plot}`
-    );
-  } catch (error) {
-    console.error("Error during /info command:", error.message);
-    ctx.reply("❌ An error occurred while fetching movie info.");
-  }
-});
-
-// Command: /language
-bot.command("language", (ctx) => {
-  const userId = ctx.from.id;
-
-  if (userLanguages[userId]) {
-    ctx.reply(
-      `🌐 Your current language preference is: ${userLanguages[userId]}\n\n` +
-        "To change it, reply with one of the following:\n" +
-        "- `English`\n" +
-        "- `French`\n" +
-        "- `Spanish`\n" +
-        "- `German`\n" +
-        "- `Hindi`"
-    );
-  } else {
-    ctx.reply(
-      "🌐 You have not set a language preference yet.\n\nReply with one of the following to select your language:\n" +
-        "- `English`\n" +
-        "- `French`\n" +
-        "- `Spanish`\n" +
-        "- `German`\n" +
-        "- `Hindi`"
-    );
-  }
-});
-
-// Handle language selection
-bot.on("text", (ctx) => {
-  const userId = ctx.from.id;
-  const text = ctx.message.text.toLowerCase();
-  const languages = {
-    english: "English",
-    french: "French",
-    spanish: "Spanish",
-    german: "German",
-    hindi: "Hindi",
-  };
-
-  if (languages[text]) {
-    userLanguages[userId] = languages[text];
-    ctx.reply(`✅ Your language preference has been set to: ${languages[text]}`);
-  }
-});
-
-// Command: /feedback
-bot.command("feedback", (ctx) => {
-  const userId = ctx.from.id;
-  const feedbackText = "🌟 Please share your feedback:\n- `Good`\n- `Bad`\n- `Suggestion <message>`";
-  ctx.reply(feedbackText);
-});
-
-// Handle feedback
-bot.on("text", (ctx) => {
-  const text = ctx.message.text;
-  if (text.startsWith("Suggestion")) {
-    const suggestion = text.split(" ").slice(1).join(" ");
-    if (suggestion) {
-      ctx.telegram.sendMessage(process.env.OWNER_ID, `📥 New suggestion from ${ctx.from.first_name}: ${suggestion}`);
-      ctx.reply("✅ Your suggestion has been sent. Thank you!");
-    } else {
-      ctx.reply("⚠️ Please provide your suggestion after 'Suggestion'.");
+      ctx.replyWithMarkdown(
+        `📥 *Direct Download Link:*\n\n[Click here to download](${pixelDrainUrl})`,
+        { disable_web_page_preview: true }
+      );
+    } catch (error) {
+      console.error("Error fetching PixelDrain file:", error.message);
+      ctx.reply("❌ An error occurred while fetching the file. Please try again later.");
     }
   }
 });
+
+// Webhook configuration for Render deployment
+if (process.env.RENDER) {
+  const express = require("express");
+  const app = express();
+
+  app.use(bot.webhookCallback("/webhook"));
+  const PORT = process.env.PORT || 3000;
+
+  app.listen(PORT, () => {
+    console.log(`🚀 Bot is running on port ${PORT}`);
+  });
+
+  bot.telegram.setWebhook(`${process.env.RENDER_EXTERNAL_URL}/webhook`);
+} else {
+  bot.launch();
+  console.log("🚀 Bot started with polling!");
+}
+
+process.once("SIGINT", () => bot.stop("SIGINT"));
+process.once("SIGTERM", () => bot.stop("SIGTERM"));
