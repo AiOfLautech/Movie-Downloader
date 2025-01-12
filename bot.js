@@ -1,5 +1,5 @@
-const express = require("express");
 const { Telegraf } = require("telegraf");
+const express = require("express");
 const axios = require("axios");
 require("dotenv").config();
 
@@ -7,17 +7,16 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Temporary storage for user preferences and feedback
+// Temporary storage for user preferences
 const userLanguages = {};
 
-// Webhook Endpoint for Render
+// Webhook setup for Render
 app.use(express.json());
-app.post(`/webhook`, (req, res) => {
+app.post("/webhook", (req, res) => {
   bot.handleUpdate(req.body);
   res.status(200).send("OK");
 });
 
-// Start Webhook or Long Polling
 if (process.env.RENDER_EXTERNAL_URL) {
   bot.telegram.setWebhook(`${process.env.RENDER_EXTERNAL_URL}/webhook`);
   app.listen(PORT, () => {
@@ -34,14 +33,14 @@ process.once("SIGTERM", () => bot.stop("SIGTERM"));
 // Command: /start
 bot.start((ctx) => {
   ctx.reply(
-    "👋 Welcome to CineMindBot!\n\nHere are the available commands:\n" +
-      "🎥 `/download <movie_name>` - Search and download movies\n" +
-      "📜 `/subtitle <movie_name>` - Download subtitles for movies\n" +
-      "🔥 `/recommend` - Get trending movie recommendations\n" +
-      "🎬 `/info <movie_name>` - Get detailed movie information\n" +
-      "🌐 `/language` - View or change language preferences\n" +
-      "📝 `/feedback` - Provide feedback or suggestions\n" +
-      "🙋 `/owner` - Get bot owner's contact info"
+    "👋 Welcome to CineMindBot!\n\nAvailable commands:\n" +
+      "🎥 `/download <movie_name>` - Search & download movies\n" +
+      "📜 `/subtitle <movie_name>` - Download subtitles\n" +
+      "🔥 `/recommend` - Trending movie recommendations\n" +
+      "🎬 `/info <movie_name>` - Movie details\n" +
+      "🌐 `/language` - Set language preferences\n" +
+      "📝 `/feedback` - Share feedback\n" +
+      "🙋 `/owner` - Bot owner contact info"
   );
 });
 
@@ -50,46 +49,67 @@ bot.command("owner", (ctx) => {
   ctx.reply("🤖 Bot Owner:\nAI OF LAUTECH\n📞 WhatsApp: +2348089336992");
 });
 
-// Command: /download
+// Command: /download (Handles SinhalaSub and PixelDrain APIs)
 bot.command("download", async (ctx) => {
   const movieName = ctx.message.text.split(" ").slice(1).join(" ");
   if (!movieName) {
     return ctx.reply("⚠️ Please provide a movie name! Example: `/download Deadpool`");
   }
 
+  ctx.reply("⏳ Searching for movie, please wait...");
+
   try {
-    ctx.reply(`🔍 Searching for "${movieName}"...`);
+    const sinhalaSubSearchUrl = `https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(movieName)}`;
+    const sinhalaResponse = await axios.get(sinhalaSubSearchUrl);
+    const movies = sinhalaResponse.data.result || [];
 
-    // SinhalaSub API
-    const sinhalaSubUrl = `https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(movieName)}`;
-    const sinhalaResponse = await axios.get(sinhalaSubUrl);
-    const sinhalaMovies = sinhalaResponse.data.result || [];
-
-    // PixelDrain API (Optional)
-    let pixelDrainDownload = "No PixelDrain downloads found.\n\n";
-    if (sinhalaMovies.length) {
-      const selectedMovie = sinhalaMovies[0];
-      const fileId = selectedMovie.link.split("/").pop();
-      const pixelDrainUrl = `https://pixeldrain.com/api/file/${fileId}?download`;
-      try {
-        const pixelResponse = await axios.get(pixelDrainUrl);
-        pixelDrainDownload = pixelResponse.data.success
-          ? `🔗 Direct Download Link: ${pixelResponse.data.url}\n\n`
-          : "❌ Unable to fetch PixelDrain download.";
-      } catch (e) {
-        console.error("PixelDrain API Error:", e.message);
-      }
+    if (!movies.length) {
+      return ctx.reply(`⚠️ No results found for "${movieName}".`);
     }
 
-    let movieList = "🎥 *Search Results:*\n\n";
-    sinhalaMovies.forEach((movie, index) => {
-      movieList += `${index + 1}. *${movie.title}*\nIMDB: ${movie.imdb}\nYear: ${movie.year}\n🔗 [Link](${movie.link})\n\n`;
+    let movieList = "🎥 *Search Results:* \n\n";
+    movies.forEach((movie, index) => {
+      movieList += `${index + 1}. *${movie.title}*\n` +
+        `🔗 [SinhalaSub Link](${movie.link})\n` +
+        `IMDB: ${movie.imdb}, Year: ${movie.year}\n\n`;
     });
 
-    ctx.replyWithMarkdown(`${movieList}\n${pixelDrainDownload}`);
+    ctx.replyWithMarkdown(movieList);
+    ctx.reply("Reply with the number of the movie to fetch download links.");
+    
+    bot.on("text", async (ctx) => {
+      const selection = parseInt(ctx.message.text.trim());
+      if (isNaN(selection) || selection < 1 || selection > movies.length) {
+        return ctx.reply("⚠️ Invalid selection. Please reply with a valid number.");
+      }
+
+      const selectedMovie = movies[selection - 1];
+      ctx.reply(`⏳ Fetching download links for "${selectedMovie.title}"...`);
+
+      try {
+        const movieDetailsUrl = `https://api-site-2.vercel.app/api/sinhalasub/movie?url=${encodeURIComponent(selectedMovie.link)}`;
+        const detailsResponse = await axios.get(movieDetailsUrl);
+        const movieDetails = detailsResponse.data.result;
+        const downloadLinks = movieDetails.dl_links || [];
+
+        if (!downloadLinks.length) {
+          return ctx.reply("❌ No PixelDrain links available for this movie.");
+        }
+
+        let qualityList = `🎥 *${movieDetails.title}*\n\n*Available Download Links:*\n\n`;
+        downloadLinks.forEach((link, index) => {
+          qualityList += `${index + 1}. *${link.quality}* - ${link.size}\n🔗 [Download Link](${link.link})\n\n`;
+        });
+
+        ctx.replyWithMarkdown(qualityList);
+      } catch (error) {
+        console.error("Error fetching movie details:", error.message);
+        ctx.reply("❌ An error occurred while fetching movie details. Please try again.");
+      }
+    });
   } catch (error) {
     console.error("Error during /download command:", error.message);
-    ctx.reply("❌ An error occurred while searching for the movie. Please try again later.");
+    ctx.reply("❌ An error occurred while searching for the movie.");
   }
 });
 
@@ -219,34 +239,21 @@ bot.on("text", (ctx) => {
   }
 });
 
-// Command: /feedback
+// Feedback command updated for text-based interaction
 bot.command("feedback", (ctx) => {
-  ctx.reply(
-    "🌟 Please share your feedback:\n\n" +
-      "- `Good`\n" +
-      "- `Bad`\n" +
-      "- `Suggestion <message>`\n"
-  );
+  ctx.reply("🌟 Share your feedback:\n- Reply with 'Good', 'Bad', or 'Suggestion <message>'.");
 });
 
-// Handle feedback
+// Handle Feedback Input
 bot.on("text", (ctx) => {
-  const text = ctx.message.text;
-  if (text.startsWith("Suggestion")) {
-    const suggestion = text.split(" ").slice(1).join(" ");
+  const feedback = ctx.message.text.trim();
+  if (feedback.toLowerCase().startsWith("suggestion")) {
+    const suggestion = feedback.split(" ").slice(1).join(" ");
     if (suggestion) {
-      ctx.telegram.sendMessage(process.env.OWNER_ID, `📥 New suggestion from ${ctx.from.first_name}:\n${suggestion}`);
+      ctx.telegram.sendMessage(process.env.OWNER_ID, `📥 Suggestion from ${ctx.from.first_name}: ${suggestion}`);
       ctx.reply("✅ Your suggestion has been sent. Thank you!");
     } else {
       ctx.reply("⚠️ Please provide your suggestion after 'Suggestion'.");
     }
-  } else if (text.toLowerCase() === "good" || text.toLowerCase() === "bad") {
-    const feedbackType = text.toLowerCase() === "good" ? "Positive" : "Negative";
-    ctx.telegram.sendMessage(process.env.OWNER_ID, `📥 ${feedbackType} feedback from ${ctx.from.first_name}`);
-    ctx.reply(`✅ Thank you for your ${feedbackType.toLowerCase()} feedback!`);
   }
 });
-
-// Graceful shutdown
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
