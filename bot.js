@@ -167,14 +167,14 @@ bot.command("download", async (ctx) => {
               );
 
             return ctx.reply(
-              `🎥 *${data.result.title}*\n\n*Pixeldrain Download Links:*`,
+              `🎥 *${data.result.title}*\n\n*Movie Download Links:*`,
               Markup.inlineKeyboard(pixeldrainLinks, { columns: 1 })
             );
           }
 
           // Fallback to SinhalaSub link if no Pixeldrain link found
           ctx.reply(
-            `❌ No Pixeldrain links found. \n🔗 [SinhalaSub Download Link](${movie.link})`,
+            `❌ No movie download links found. \n🔗 [SinhalaSub Download Link](${movie.link})`,
             { parse_mode: "Markdown" }
           );
         } catch (error) {
