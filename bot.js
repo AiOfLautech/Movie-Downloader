@@ -132,9 +132,8 @@ bot.command("download", async (ctx) => {
   }
 
   try {
-    ctx.reply("🔍 Searching for movies...");
+    ctx.reply(`🔍 Searching for "${movieName}"...`);
 
-    // Fetch movies from SinhalaSub API
     const searchUrl = `https://api-site-2.vercel.app/api/sinhalasub/search?q=${encodeURIComponent(movieName)}`;
     const response = await axios.get(searchUrl);
     const movies = response.data.result || [];
@@ -143,48 +142,50 @@ bot.command("download", async (ctx) => {
       return ctx.reply(`⚠️ No results found for "${movieName}".`);
     }
 
-    const movieButtons = movies.map((movie, index) => [
-      Markup.button.callback(movie.title, `movie_${index}`),
-    ]);
-
-    ctx.reply(
-      "🎥 *Search Results:*",
-      Markup.inlineKeyboard(movieButtons)
+    const buttons = movies.map((movie, index) =>
+      Markup.button.callback(`${index + 1}. ${movie.title}`, `download_${index}`)
     );
 
-    // Handle movie selection
-    movies.forEach((movie, index) => {
-      bot.action(`movie_${index}`, async (ctx) => {
-        ctx.reply("Fetching download links...");
-        const apiUrl = `https://api-site-2.vercel.app/api/sinhalasub/movie?url=${encodeURIComponent(
-          movie.link
-        )}`;
+    ctx.reply(
+      "🎥 *Search Results*:\nSelect a movie to download:",
+      Markup.inlineKeyboard(buttons, { columns: 1 })
+    );
 
+    // Handle user selection
+    movies.forEach((movie, index) => {
+      bot.action(`download_${index}`, async (ctx) => {
         try {
+          const apiUrl = `https://api-site-2.vercel.app/api/sinhalasub/movie?url=${encodeURIComponent(movie.link)}`;
           const { data } = await axios.get(apiUrl);
           const downloadLinks = data.result.dl_links || [];
 
-          if (!downloadLinks.length) {
-            return ctx.reply("⚠️ No PixelDrain links found for this movie.");
+          if (downloadLinks.length > 0) {
+            const pixeldrainLinks = downloadLinks
+              .filter((link) => link.link.includes("pixeldrain"))
+              .map((link, idx) =>
+                Markup.button.url(`${link.quality} - ${link.size}`, `${link.link}?download`)
+              );
+
+            return ctx.reply(
+              `🎥 *${data.result.title}*\n\n*Pixeldrain Download Links:*`,
+              Markup.inlineKeyboard(pixeldrainLinks, { columns: 1 })
+            );
           }
 
-          const qualityButtons = downloadLinks.map((link, i) => [
-            Markup.button.url(link.quality, link.link),
-          ]);
-
+          // Fallback to SinhalaSub link if no Pixeldrain link found
           ctx.reply(
-            `🎥 *${movie.title}*\nAvailable Download Links:`,
-            Markup.inlineKeyboard(qualityButtons)
+            `❌ No Pixeldrain links found. \n🔗 [SinhalaSub Download Link](${movie.link})`,
+            { parse_mode: "Markdown" }
           );
         } catch (error) {
-          console.error("Error fetching download links:", error.message);
-          ctx.reply("❌ An error occurred while fetching download links.");
+          console.error(error);
+          ctx.reply("❌ An error occurred while fetching the download links.");
         }
       });
     });
   } catch (error) {
     console.error("Error during /download command:", error.message);
-    ctx.reply("❌ An error occurred while searching for the movie.");
+    ctx.reply("❌ An error occurred. Please try again later.");
   }
 });
 
