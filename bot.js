@@ -1,35 +1,8 @@
-const express = require("express");
 const { Telegraf, Markup } = require("telegraf");
 const axios = require("axios");
 require("dotenv").config();
 
-const bot = new Telegraf(process.env.BOT_TOKEN); // Initialize bot
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-const userLanguages = {}; // Store language preferences
-const userFeedback = []; // Store user feedback
-
-// Webhook Endpoint for Render
-app.use(express.json());
-app.post(`/webhook`, (req, res) => {
-  bot.handleUpdate(req.body);
-  res.status(200).send("OK");
-});
-
-// Start Webhook or Long Polling
-if (process.env.RENDER_EXTERNAL_URL) {
-  bot.telegram.setWebhook(`${process.env.RENDER_EXTERNAL_URL}/webhook`);
-  app.listen(PORT, () => {
-    console.log(`🤖 Bot running on Webhook at ${process.env.RENDER_EXTERNAL_URL}/webhook`);
-  });
-} else {
-  bot.launch().then(() => console.log("🤖 Bot running with long polling!"));
-}
-
-// Graceful shutdown
-process.once("SIGINT", () => bot.stop("SIGINT"));
-process.once("SIGTERM", () => bot.stop("SIGTERM"));
+const bot = new Telegraf(process.env.BOT_TOKEN);
 
 // Command: /start
 bot.start((ctx) => {
@@ -84,32 +57,21 @@ bot.command("download", async (ctx) => {
             return ctx.reply(`❌ No download links found for "${movie.title}".`);
           }
 
-          const qualityButtons = downloadLinks.map((link, i) =>
-            Markup.button.callback(link.quality || `Quality ${i + 1}`, `download_quality_${index}_${i}`)
-          );
+          const pixeldrainLink = downloadLinks.find((link) => link.link.includes("pixeldrain"));
+          if (!pixeldrainLink) {
+            return ctx.reply(
+              `❌ No Pixeldrain links found. \n🔗 [SinhalaSub Download Link](${movie.link})`,
+              { parse_mode: "Markdown" }
+            );
+          }
+
+          const fileId = pixeldrainLink.link.split("/").pop();
+          const fileUrl = `https://pixeldrain.com/api/file/${fileId}?download`;
 
           ctx.reply(
-            "📥 Select the desired quality:",
-            Markup.inlineKeyboard(qualityButtons, { columns: 1 })
+            `📥 Your movie is ready for download: [Click here](${fileUrl})`,
+            { parse_mode: "Markdown" }
           );
-
-          downloadLinks.forEach((link, i) => {
-            const fileId = link.link.includes("pixeldrain") ? link.link.split("/").pop() : null;
-            bot.action(`download_quality_${index}_${i}`, async (ctx) => {
-              if (fileId) {
-                const fileUrl = `https://pixeldrain.com/api/file/${fileId}`;
-                await ctx.replyWithDocument({
-                  url: fileUrl,
-                  filename: `${data.result.title || "movie"}.mp4`,
-                });
-              } else {
-                ctx.reply(
-                  `🔗 Direct download link:\n${link.link}`,
-                  { parse_mode: "Markdown" }
-                );
-              }
-            });
-          });
         } catch (error) {
           console.error(error);
           ctx.reply("❌ An error occurred while fetching the movie file.");
@@ -140,22 +102,22 @@ bot.command("info", async (ctx) => {
 
     ctx.replyWithMarkdown(
       `🎬 *${movie.Title}*\n` +
-        `📅 Released: ${movie.Released || "N/A"}\n` +
-        `⭐ IMDB Rating: ${movie.imdbRating || "N/A"}/10\n` +
-        `🎭 Genre: ${movie.Genre || "N/A"}\n` +
-        `🎙️ Actors: ${movie.Actors || "N/A"}\n\n` +
-        `📖 *Plot*: ${movie.Plot || "N/A"}`
+        `📅 Released: ${movie.Released}\n` +
+        `⭐ IMDB Rating: ${movie.imdbRating}/10\n` +
+        `🎭 Genre: ${movie.Genre}\n` +
+        `🎙️ Actors: ${movie.Actors}\n` +
+        `📖 *Plot*: ${movie.Plot}`
     );
   } catch (error) {
     console.error("Error during /info command:", error.message);
-    ctx.reply("❌ Could not fetch the information. Please try again.");
+    ctx.reply("❌ An error occurred while fetching movie information.");
   }
 });
 
 // Command: /recommend
 bot.command("recommend", async (ctx) => {
   try {
-    const apiUrl = "https://api.themoviedb.org/3/trending/movie/week?api_key=" + process.env.TMDB_API_KEY;
+    const apiUrl = `https://api.themoviedb.org/3/trending/movie/week?api_key=${process.env.TMDB_API_KEY}`;
     const response = await axios.get(apiUrl);
     const movies = response.data.results.slice(0, 5);
 
@@ -233,20 +195,6 @@ bot.action("lang_fr", (ctx) => {
   ctx.reply("✅ Langue changée en Français.");
 });
 
-// Command: /feedback
-bot.command("feedback", (ctx) => {
-  ctx.reply("📝 Please reply to this message with your feedback.");
-  bot.on("text", (ctx) => {
-    const feedback = {
-      user: ctx.from.username || ctx.from.first_name,
-      message: ctx.message.text,
-    };
-    userFeedback.push(feedback);
-    ctx.reply("✅ Thank you for your feedback!");
-    console.log("Feedback received:", feedback);
-  });
-});
-
 // Command: /donate
 bot.command("donate", (ctx) => {
   ctx.reply(
@@ -263,12 +211,17 @@ bot.command("owner", (ctx) => {
   ctx.reply("🤖 Bot Owner:\nAI OF LAUTECH\n📞 WhatsApp: +2348089336992");
 });
 
-// Handle unknown commands
-bot.on("text", (ctx) => {
-  const message = ctx.message.text;
-  if (message.startsWith("/")) {
-    ctx.reply("❌ Command not recognized. Please use /start to see the list of available commands.");
-  }
+// Command: /feedback
+bot.command("feedback", (ctx) => {
+  ctx.reply("📝 Please reply to this message with your feedback.");
+  bot.on("text", (ctx) => {
+    userFeedback.push({ user: ctx.from.username || ctx.from.first_name, feedback: ctx.message.text });
+    ctx.reply("✅ Thank you for your feedback!");
+  });
 });
 
-module.exports = bot;
+// Graceful shutdown
+process.once("SIGINT", () => bot.stop("SIGINT"));
+process.once("SIGTERM", () => bot.stop("SIGTERM"));
+
+bot.launch().then(() => console.log("🤖 Bot is running!"));
