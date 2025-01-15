@@ -7,6 +7,9 @@ const bot = new Telegraf(process.env.BOT_TOKEN); // Initialize bot
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const userLanguages = {}; // Store language preferences
+const userFeedback = []; // Store user feedback
+
 // Webhook Endpoint for Render
 app.use(express.json());
 app.post(`/webhook`, (req, res) => {
@@ -70,7 +73,6 @@ bot.command("download", async (ctx) => {
       Markup.inlineKeyboard(buttons, { columns: 1 })
     );
 
-    // Handle user selection
     movies.forEach((movie, index) => {
       bot.action(`download_${index}`, async (ctx) => {
         try {
@@ -82,21 +84,31 @@ bot.command("download", async (ctx) => {
             return ctx.reply(`❌ No download links found for "${movie.title}".`);
           }
 
-          const pixeldrainLink = downloadLinks.find((link) => link.link.includes("pixeldrain"));
-          if (!pixeldrainLink) {
-            return ctx.reply(
-              `❌ No Pixeldrain links found. \n🔗 [SinhalaSub Download Link](${movie.link})`,
-              { parse_mode: "Markdown" }
-            );
-          }
+          const qualityButtons = downloadLinks.map((link, i) =>
+            Markup.button.callback(link.quality || `Quality ${i + 1}`, `download_quality_${index}_${i}`)
+          );
 
-          const fileId = pixeldrainLink.link.split("/").pop();
-          const fileUrl = `https://pixeldrain.com/api/file/${fileId}`;
+          ctx.reply(
+            "📥 Select the desired quality:",
+            Markup.inlineKeyboard(qualityButtons, { columns: 1 })
+          );
 
-          ctx.reply(`📥 Preparing your movie...`);
-          await ctx.replyWithDocument({
-            url: fileUrl,
-            filename: `${data.result.title}.mp4`,
+          downloadLinks.forEach((link, i) => {
+            const fileId = link.link.includes("pixeldrain") ? link.link.split("/").pop() : null;
+            bot.action(`download_quality_${index}_${i}`, async (ctx) => {
+              if (fileId) {
+                const fileUrl = `https://pixeldrain.com/api/file/${fileId}`;
+                await ctx.replyWithDocument({
+                  url: fileUrl,
+                  filename: `${data.result.title || "movie"}.mp4`,
+                });
+              } else {
+                ctx.reply(
+                  `🔗 Direct download link:\n${link.link}`,
+                  { parse_mode: "Markdown" }
+                );
+              }
+            });
           });
         } catch (error) {
           console.error(error);
@@ -126,54 +138,18 @@ bot.command("info", async (ctx) => {
       return ctx.reply(`❌ No information found for "${movieName}".`);
     }
 
-    const youtubeSearchUrl = `https://www.googleapis.com/youtube/v3/search?key=${process.env.YOUTUBE_API_KEY}&q=${encodeURIComponent(
-      movie.Title + " trailer"
-    )}&part=snippet&type=video&maxResults=1`;
-    const youtubeResponse = await axios.get(youtubeSearchUrl);
-    const trailer = youtubeResponse.data.items[0];
-
-    const trailerLink = trailer
-      ? `🎥 [Watch Trailer](https://www.youtube.com/watch?v=${trailer.id.videoId})`
-      : "🎥 Trailer not available.";
-
     ctx.replyWithMarkdown(
       `🎬 *${movie.Title}*\n` +
-        `📅 Released: ${movie.Released}\n` +
-        `⭐ IMDB Rating: ${movie.imdbRating}/10\n` +
-        `🎭 Genre: ${movie.Genre}\n` +
-        `🎙️ Actors: ${movie.Actors}\n` +
-        `${trailerLink}\n\n` +
-        `📖 *Plot*: ${movie.Plot}`
+        `📅 Released: ${movie.Released || "N/A"}\n` +
+        `⭐ IMDB Rating: ${movie.imdbRating || "N/A"}/10\n` +
+        `🎭 Genre: ${movie.Genre || "N/A"}\n` +
+        `🎙️ Actors: ${movie.Actors || "N/A"}\n\n` +
+        `📖 *Plot*: ${movie.Plot || "N/A"}`
     );
   } catch (error) {
     console.error("Error during /info command:", error.message);
-    ctx.reply("❌ An error occurred while fetching movie information.");
+    ctx.reply("❌ Could not fetch the information. Please try again.");
   }
-});
-
-// Command: /donate
-bot.command("donate", (ctx) => {
-  ctx.reply(
-    "💳 *Support CineMindBot Development*:\n\n" +
-      "Bank Name: Moniepoint\n" +
-      "Account Name: Babalola Hephzibah Samuel\n" +
-      "Account Number: 8089336992",
-    { parse_mode: "Markdown" }
-  );
-});
-
-// Command: /owner
-bot.command("owner", (ctx) => {
-  ctx.reply("🤖 Bot Owner:\nAI OF LAUTECH\n📞 WhatsApp: +2348089336992");
-});
-
-// Command: /feedback
-bot.command("feedback", (ctx) => {
-  ctx.reply("📝 Please reply to this message with your feedback.");
-  bot.on("text", (ctx) => {
-    userFeedback.push({ user: ctx.from.username || ctx.from.first_name, feedback: ctx.message.text });
-    ctx.reply("✅ Thank you for your feedback!");
-  });
 });
 
 // Command: /recommend
@@ -194,6 +170,7 @@ bot.command("recommend", async (ctx) => {
     ctx.reply("❌ An error occurred while fetching recommendations.");
   }
 });
+
 // Command: /subtitle
 bot.command("subtitle", async (ctx) => {
   const movieName = ctx.message.text.split(" ").slice(1).join(" ");
@@ -254,6 +231,44 @@ bot.action("lang_fr", (ctx) => {
   const chatId = ctx.chat.id;
   userLanguages[chatId] = "French";
   ctx.reply("✅ Langue changée en Français.");
+});
+
+// Command: /feedback
+bot.command("feedback", (ctx) => {
+  ctx.reply("📝 Please reply to this message with your feedback.");
+  bot.on("text", (ctx) => {
+    const feedback = {
+      user: ctx.from.username || ctx.from.first_name,
+      message: ctx.message.text,
+    };
+    userFeedback.push(feedback);
+    ctx.reply("✅ Thank you for your feedback!");
+    console.log("Feedback received:", feedback);
+  });
+});
+
+// Command: /donate
+bot.command("donate", (ctx) => {
+  ctx.reply(
+    "💳 *Support CineMindBot Development*:\n\n" +
+      "Bank Name: Moniepoint\n" +
+      "Account Name: Babalola Hephzibah Samuel\n" +
+      "Account Number: 8089336992",
+    { parse_mode: "Markdown" }
+  );
+});
+
+// Command: /owner
+bot.command("owner", (ctx) => {
+  ctx.reply("🤖 Bot Owner:\nAI OF LAUTECH\n📞 WhatsApp: +2348089336992");
+});
+
+// Handle unknown commands
+bot.on("text", (ctx) => {
+  const message = ctx.message.text;
+  if (message.startsWith("/")) {
+    ctx.reply("❌ Command not recognized. Please use /start to see the list of available commands.");
+  }
 });
 
 module.exports = bot;
